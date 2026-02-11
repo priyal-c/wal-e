@@ -341,6 +341,13 @@ class MarkdownReporter(BaseReporter):
         ops = collected_data.get("OperationsCollector", {})
         ws = collected_data.get("WorkspaceCollector", {})
 
+        # Rich detail lists from new collectors
+        clusters = compute.get("clusters", []) or []
+        warehouses = compute.get("warehouses", []) or []
+        jobs = ops.get("jobs", []) or []
+        pipelines = ops.get("pipelines", []) or ops.get("pipeline_states", []) or []
+        sec_settings = sec.get("security_settings", {}) or {}
+
         if pillar == "Data & AI Governance":
             if gov.get("metastore_name"):
                 findings.append(("Unity Catalog", f"Metastore: `{gov['metastore_name']}`", "Implemented"))
@@ -359,26 +366,48 @@ class MarkdownReporter(BaseReporter):
                 findings.append(("Catalog Isolation", f"{iso['OPEN']} catalogs in OPEN mode", "Gap"))
 
         elif pillar == "Interoperability & Usability":
-            wh_count = compute.get("warehouse_count", 0)
+            wh_count = compute.get("warehouse_count", 0) or len(warehouses)
             if wh_count:
-                findings.append(("SQL Warehouses", f"{wh_count} warehouses configured", "Implemented" if wh_count < 20 else "Gap"))
+                # Show serverless/PRO breakdown
+                serverless = sum(1 for w in warehouses if isinstance(w, dict) and w.get("enable_serverless_compute"))
+                pro = sum(1 for w in warehouses if isinstance(w, dict) and w.get("warehouse_type") == "PRO")
+                detail = f"{wh_count} warehouses"
+                if serverless:
+                    detail += f" ({serverless} serverless)"
+                elif pro:
+                    detail += f" ({pro} PRO)"
+                findings.append(("SQL Warehouses", detail, "Implemented" if wh_count < 20 else "Gap"))
             policy_count = compute.get("policy_count", 0)
             if policy_count:
-                findings.append(("Cluster Policies", f"{policy_count} policies", "Gap" if policy_count > 20 else "Implemented"))
+                names = compute.get("policy_names", [])
+                detail = f"{policy_count} policies"
+                if names:
+                    detail += f" (e.g. {', '.join(names[:3])})"
+                findings.append(("Cluster Policies", detail, "Gap" if policy_count > 20 else "Implemented"))
+            elif policy_count == 0:
+                findings.append(("Cluster Policies", "**No cluster policies defined**", "Critical Gap"))
             repos = ops.get("repo_count", 0)
             if repos:
                 findings.append(("Git Integration", f"{repos} repositories connected", "Implemented"))
 
         elif pillar == "Operational Excellence":
-            job_count = ops.get("job_count", 0)
+            job_count = ops.get("job_count", 0) or len(jobs)
             if job_count:
-                findings.append(("Job Management", f"{job_count} jobs configured", "Implemented" if job_count > 0 else "Gap"))
-            pipeline_count = ops.get("pipeline_count", 0)
+                git_jobs = sum(1 for j in jobs if isinstance(j, dict) and j.get("has_git_source"))
+                detail = f"{job_count} jobs configured"
+                if git_jobs:
+                    detail += f" ({git_jobs} with Git source)"
+                findings.append(("Job Management", detail, "Implemented"))
+            pipeline_count = ops.get("pipeline_count", 0) or len(pipelines)
             if pipeline_count:
-                findings.append(("DLT Pipelines", f"{pipeline_count} pipelines", "Implemented"))
-            init_status = ops.get("init_script_status", {})
-            if init_status:
-                disabled = init_status.get("DISABLED", 0)
+                failed = sum(1 for p in pipelines if isinstance(p, dict) and p.get("state") == "FAILED")
+                detail = f"{pipeline_count} pipelines"
+                if failed:
+                    detail += f" (**{failed} FAILED**)"
+                findings.append(("DLT Pipelines", detail, "Implemented" if not failed else "Gap"))
+            init_scripts = ops.get("init_scripts", []) or ops.get("init_script_status", [])
+            if isinstance(init_scripts, list) and init_scripts:
+                disabled = sum(1 for s in init_scripts if isinstance(s, dict) and s.get("enabled") is False)
                 if disabled:
                     findings.append(("Global Init Scripts", f"{disabled} scripts DISABLED", "Gap"))
             untitled = ws.get("untitled_notebooks_count", 0)
@@ -389,56 +418,156 @@ class MarkdownReporter(BaseReporter):
                 findings.append(("Instance Pools", f"{pool_count} pools configured", "Implemented"))
 
         elif pillar == "Security":
-            sec_settings = sec.get("security_settings", {})
+            # DBFS browser
             dbfs = sec_settings.get("enableDbfsFileBrowser")
-            if dbfs and str(dbfs).lower() == "true":
-                findings.append(("DBFS File Browser", "**ENABLED** (security risk)", "Critical Gap"))
+            if dbfs:
+                if str(dbfs).lower() == "true":
+                    findings.append(("DBFS File Browser", "**ENABLED** — data exfiltration risk", "Critical Gap"))
+                else:
+                    findings.append(("DBFS File Browser", "Disabled", "Implemented"))
+            # Results downloading
+            dl = sec_settings.get("enableResultsDownloading")
+            if dl:
+                if str(dl).lower() == "true":
+                    findings.append(("Results Downloading", "**ENABLED** — consider disabling for production", "Gap"))
+                else:
+                    findings.append(("Results Downloading", "Disabled", "Implemented"))
+            # Notebook export
+            export = sec_settings.get("enableExportNotebook")
+            if export:
+                if str(export).lower() == "true":
+                    findings.append(("Notebook Export", "**ENABLED** — IP protection concern", "Gap"))
+                else:
+                    findings.append(("Notebook Export", "Disabled", "Implemented"))
+            # Token lifetime
+            max_token = sec_settings.get("maxTokenLifetimeDays")
+            if max_token:
+                try:
+                    days = int(max_token)
+                    status = "Implemented" if days <= 30 else ("Gap" if days <= 90 else "Critical Gap")
+                    findings.append(("Token Lifetime", f"Max **{max_token} days**", status))
+                except ValueError:
+                    findings.append(("Token Lifetime", f"Set to {max_token}", "Gap"))
+            # IP access lists
             ipl = sec.get("ip_access_list_count", 0)
-            findings.append(("IP Access Lists", f"{ipl} lists configured", "Implemented" if ipl > 0 else "Gap"))
+            ip_enabled = str(sec_settings.get("enableIpAccessLists", "")).lower() == "true"
+            if ipl > 0 and ip_enabled:
+                findings.append(("IP Access Lists", f"{ipl} lists configured and **enabled**", "Implemented"))
+            elif ipl > 0:
+                findings.append(("IP Access Lists", f"{ipl} lists but **not enabled**", "Gap"))
+            else:
+                findings.append(("IP Access Lists", "**None configured**", "Gap"))
+            # Tokens
             token_info = sec.get("token_info", {})
             if token_info:
-                findings.append(("Tokens", f"{token_info.get('count', 0)} active tokens", "Implemented"))
+                findings.append(("Active Tokens", f"{token_info.get('count', 0)} tokens", "Implemented"))
+            # Secret scopes
             scope_count = ops.get("scope_count", 0)
             if scope_count:
                 findings.append(("Secret Scopes", f"{scope_count} scopes configured", "Implemented"))
-            max_token = sec_settings.get("maxTokenLifetimeDays")
-            if max_token:
-                findings.append(("Token Lifetime", f"Max {max_token} days", "Gap" if int(max_token) > 30 else "Implemented"))
 
         elif pillar == "Reliability":
-            pipeline_states = ops.get("pipeline_states", [])
-            if pipeline_states:
-                failed = sum(1 for p in pipeline_states if p.get("state") == "FAILED")
+            # Pipelines
+            if pipelines:
+                failed = sum(1 for p in pipelines if isinstance(p, dict) and p.get("state") == "FAILED")
                 if failed:
                     findings.append(("DLT Pipelines", f"**{failed} pipelines in FAILED state**", "Critical Gap"))
-            cluster_count = compute.get("cluster_count", 0)
-            if cluster_count:
-                findings.append(("Compute", f"{cluster_count} clusters available", "Implemented"))
+            # Clusters with Photon
+            cluster_count = compute.get("cluster_count", 0) or len(clusters)
+            if clusters:
+                photon = sum(1 for c in clusters if isinstance(c, dict) and c.get("runtime_engine") == "PHOTON")
+                findings.append(("Compute", f"{cluster_count} clusters ({photon} Photon-enabled)", "Implemented" if photon else "Gap"))
+            elif cluster_count:
+                findings.append(("Compute", f"{cluster_count} clusters", "Implemented"))
+            # Jobs with retries
+            if jobs:
+                with_retries = sum(1 for j in jobs if isinstance(j, dict) and (j.get("max_retries") or 0) > 0)
+                if with_retries:
+                    findings.append(("Job Resilience", f"{with_retries}/{len(jobs)} jobs with retries configured", "Implemented"))
+                else:
+                    findings.append(("Job Resilience", "**No jobs have retries configured**", "Gap"))
+            # Model serving
             endpoint_count = ops.get("endpoint_count", 0)
             if endpoint_count:
                 findings.append(("Model Serving", f"{endpoint_count} serving endpoints", "Implemented"))
 
         elif pillar == "Performance":
-            wh_configs = compute.get("warehouse_configs", [])
-            if wh_configs:
-                serverless = sum(1 for w in wh_configs if w.get("cluster_size"))
-                findings.append(("SQL Warehouses", f"{len(wh_configs)} warehouses", "Implemented"))
-            cluster_count = compute.get("cluster_count", 0)
-            if cluster_count:
+            # Warehouses
+            wh_count = compute.get("warehouse_count", 0) or len(warehouses)
+            if warehouses:
+                photon_wh = sum(1 for w in warehouses if isinstance(w, dict) and w.get("enable_photon"))
+                serverless = sum(1 for w in warehouses if isinstance(w, dict) and w.get("enable_serverless_compute"))
+                detail = f"{wh_count} warehouses"
+                parts = []
+                if photon_wh:
+                    parts.append(f"{photon_wh} Photon")
+                if serverless:
+                    parts.append(f"{serverless} serverless")
+                if parts:
+                    detail += f" ({', '.join(parts)})"
+                findings.append(("SQL Warehouses", detail, "Implemented"))
+            elif wh_count:
+                findings.append(("SQL Warehouses", f"{wh_count} warehouses", "Implemented"))
+            # Clusters
+            cluster_count = compute.get("cluster_count", 0) or len(clusters)
+            if clusters:
+                autoscale = sum(1 for c in clusters if isinstance(c, dict) and c.get("autoscale"))
+                photon = sum(1 for c in clusters if isinstance(c, dict) and c.get("runtime_engine") == "PHOTON")
+                detail = f"{cluster_count} clusters"
+                parts = []
+                if autoscale:
+                    parts.append(f"{autoscale} with autoscaling")
+                if photon:
+                    parts.append(f"{photon} Photon")
+                if parts:
+                    detail += f" ({', '.join(parts)})"
+                findings.append(("Clusters", detail, "Implemented"))
+            elif cluster_count:
                 findings.append(("Clusters", f"{cluster_count} clusters configured", "Implemented"))
 
         elif pillar == "Cost":
-            cluster_count = compute.get("running_clusters", compute.get("cluster_count", 0))
+            running = compute.get("running_clusters", 0)
+            cluster_count = compute.get("cluster_count", 0) or len(clusters)
             if cluster_count:
-                status = "Critical Gap" if cluster_count > 10 else "Implemented"
-                findings.append(("Running Clusters", f"**{cluster_count} clusters running**", status))
-            wh_count = compute.get("warehouse_count", 0)
-            if wh_count:
-                status = "Gap" if wh_count > 20 else "Implemented"
-                findings.append(("SQL Warehouses", f"{wh_count} warehouses (consolidation opportunity)", status))
+                # Auto-termination
+                with_auto_term = sum(1 for c in clusters if isinstance(c, dict) and (c.get("auto_termination_minutes") or 0) > 0)
+                status = "Critical Gap" if running > 10 else "Implemented"
+                detail = f"**{cluster_count} clusters** ({running} running)"
+                if with_auto_term:
+                    detail += f", {with_auto_term} with auto-termination"
+                else:
+                    detail += ", **no auto-termination configured**"
+                    status = "Gap" if status != "Critical Gap" else status
+                findings.append(("Clusters", detail, status))
+            # Tagging
+            if clusters:
+                with_tags = sum(1 for c in clusters if isinstance(c, dict) and len(c.get("custom_tags") or {}) > 0)
+                if with_tags:
+                    findings.append(("Cost Tags", f"{with_tags}/{len(clusters)} clusters tagged", "Implemented" if with_tags == len(clusters) else "Gap"))
+                else:
+                    findings.append(("Cost Tags", "**No clusters have custom tags**", "Gap"))
+            # Warehouses
+            wh_count = compute.get("warehouse_count", 0) or len(warehouses)
+            if warehouses:
+                with_autostop = sum(1 for w in warehouses if isinstance(w, dict) and (w.get("auto_stop_mins") or 0) > 0)
+                serverless = sum(1 for w in warehouses if isinstance(w, dict) and w.get("enable_serverless_compute"))
+                detail = f"{wh_count} warehouses"
+                parts = []
+                if with_autostop:
+                    parts.append(f"{with_autostop} auto-stop")
+                if serverless:
+                    parts.append(f"{serverless} serverless")
+                if parts:
+                    detail += f" ({', '.join(parts)})"
+                findings.append(("SQL Warehouses", detail, "Implemented" if wh_count < 20 else "Gap"))
+            elif wh_count:
+                findings.append(("SQL Warehouses", f"{wh_count} warehouses", "Gap" if wh_count > 20 else "Implemented"))
+            # Policies
             policy_count = compute.get("policy_count", 0)
             if policy_count:
-                findings.append(("Cluster Policies", f"{policy_count} policies (cost controls needed)", "Gap" if policy_count > 20 else "Implemented"))
+                findings.append(("Cluster Policies", f"{policy_count} policies for cost controls", "Implemented"))
+            else:
+                findings.append(("Cluster Policies", "**No policies** — cannot enforce cost controls", "Critical Gap"))
 
         return findings
 

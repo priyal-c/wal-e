@@ -140,8 +140,10 @@ def _score_gov_008(data: dict) -> tuple[int, str]:
 def _score_gov_009(data: dict) -> tuple[int, str]:
     """Audit events."""
     sec = _get(data, "SecurityCollector") or {}
-    if sec.get("security_settings"):
-        return 1, "Workspace security settings accessible; implement systematic audit event monitoring and alerting."
+    sec_settings = sec.get("security_settings", {}) or {}
+    if sec_settings:
+        # Settings are accessible, so audit events are at least partially available
+        return 1, "Workspace settings accessible; configure systematic audit event monitoring and alerting via system tables."
     return 0, "No audit events detected. Configure audit log delivery."
 
 
@@ -183,7 +185,8 @@ def _score_int_001(data: dict) -> tuple[int, str]:
     """Standard integration patterns."""
     ops = _get(data, "OperationsCollector") or {}
     job_count = ops.get("job_count", 0) or 0
-    job_names = ops.get("job_names", [])
+    jobs = ops.get("jobs", []) or []
+    job_names = [j.get("name", "") for j in jobs if isinstance(j, dict)] if jobs else ops.get("job_names", []) or []
     dab_jobs = [j for j in job_names if "[DAB]" in j or "[dev " in j] if job_names else []
     if dab_jobs:
         return 1, f"{len(dab_jobs)} DAB-based jobs detected; expand to standardize integration patterns."
@@ -195,8 +198,8 @@ def _score_int_001(data: dict) -> tuple[int, str]:
 def _score_int_002(data: dict) -> tuple[int, str]:
     """Optimized connectors."""
     ops = _get(data, "OperationsCollector") or {}
-    pipeline_states = ops.get("pipeline_states", [])
-    lakeflow = [p for p in pipeline_states if "connect" in str(p.get("name", "")).lower() or "gateway" in str(p.get("name", "")).lower()] if pipeline_states else []
+    pipelines = ops.get("pipelines", []) or ops.get("pipeline_states", []) or []
+    lakeflow = [p for p in pipelines if isinstance(p, dict) and ("connect" in str(p.get("name", "")).lower() or "gateway" in str(p.get("name", "")).lower())]
     if lakeflow:
         return 1, f"LakeFlow Connect/gateway pipelines detected ({len(lakeflow)}). Verify optimized connectors."
     return 1, "Connector optimization not verified from API. Prefer native Delta connectors."
@@ -215,8 +218,8 @@ def _score_int_004(data: dict) -> tuple[int, str]:
     """Reduce pipeline complexity."""
     ops = _get(data, "OperationsCollector") or {}
     pipeline_count = ops.get("pipeline_count", 0) or 0
-    pipeline_states = ops.get("pipeline_states", [])
-    failed = sum(1 for p in (pipeline_states or []) if p.get("state") == "FAILED")
+    pipelines = ops.get("pipelines", []) or ops.get("pipeline_states", []) or []
+    failed = sum(1 for p in pipelines if isinstance(p, dict) and p.get("state") == "FAILED")
     if pipeline_count > 0:
         if failed > 0:
             return 1, f"DLT pipelines present ({pipeline_count}) but {failed} in FAILED state."
@@ -227,7 +230,8 @@ def _score_int_004(data: dict) -> tuple[int, str]:
 def _score_int_005(data: dict) -> tuple[int, str]:
     """Use IaC."""
     ops = _get(data, "OperationsCollector") or {}
-    job_names = ops.get("job_names", [])
+    jobs = ops.get("jobs", []) or []
+    job_names = [j.get("name", "") for j in jobs if isinstance(j, dict)] if jobs else ops.get("job_names", []) or []
     dab = [j for j in (job_names or []) if "[DAB]" in j or "dabs" in j.lower()]
     if dab:
         return 1, f"{len(dab)} DAB-deployed jobs — partial IaC. Expand to Terraform/universal IaC."
@@ -276,12 +280,16 @@ def _score_int_009(data: dict) -> tuple[int, str]:
 def _score_int_010(data: dict) -> tuple[int, str]:
     """Serverless compute (Interoperability)."""
     compute = _get(data, "ComputeCollector") or {}
+    warehouses = compute.get("warehouses", []) or []
+    pro_or_serverless = sum(1 for w in warehouses if isinstance(w, dict) and (
+        w.get("warehouse_type") == "PRO" or w.get("enable_serverless_compute") is True
+    ))
+    if pro_or_serverless > 0:
+        return 2, f"{pro_or_serverless} SQL warehouse(s) with Pro or serverless compute."
+    warehouse_count = compute.get("warehouse_count", 0) or len(warehouses)
     wh_configs = compute.get("warehouse_configs", [])
-    if wh_configs:
-        # Check for PRO/serverless warehouses based on collected data
-        total = len(wh_configs)
-        if total > 0:
-            return 1, f"{total} SQL warehouses configured. Verify serverless enablement."
+    if warehouse_count > 0 or wh_configs:
+        return 1, "Warehouses present but Pro/serverless not detected. Use Pro/Serverless warehouses."
     return 0, "No SQL warehouses detected. Use Pro/Serverless warehouses."
 
 
@@ -345,9 +353,13 @@ def _score_ops_002(data: dict) -> tuple[int, str]:
 def _score_ops_003(data: dict) -> tuple[int, str]:
     """Standardize CI/CD."""
     ops = _get(data, "OperationsCollector") or {}
-    job_count = ops.get("job_count", 0) or 0
+    jobs = ops.get("jobs", []) or []
+    git_jobs = sum(1 for j in jobs if isinstance(j, dict) and j.get("has_git_source"))
+    job_count = ops.get("job_count", 0) or len(jobs)
+    if git_jobs > 0:
+        return 2, f"{git_jobs}/{job_count} job(s) use Git source — CI/CD integration in place."
     if job_count > 0:
-        return 1, "Job count available but Git-based CI/CD not verifiable from API. Use Repos and Git-backed job tasks."
+        return 1, f"{job_count} jobs present but none use Git source. Use Repos and Git-backed job tasks for CI/CD."
     return 0, "No jobs; adopt CI/CD for deployments."
 
 
@@ -505,9 +517,14 @@ def _score_sec_002(data: dict) -> tuple[int, str]:
 def _score_sec_003(data: dict) -> tuple[int, str]:
     """Network security."""
     sec = _get(data, "SecurityCollector") or {}
-    ipl_count = sec.get("ip_access_list_count", 0) or 0
+    ip_lists = sec.get("ip_access_lists", []) or []
+    sec_settings = sec.get("security_settings", {}) or {}
+    ipl_count = len(ip_lists) if isinstance(ip_lists, list) else (sec.get("ip_access_list_count", 0) or 0)
+    enable_ipl = sec_settings.get("enableIpAccessLists", "").lower() == "true"
+    if ipl_count > 0 and enable_ipl:
+        return 2, f"IP access lists configured and enabled for network security ({ipl_count} lists)."
     if ipl_count > 0:
-        return 2, f"IP access lists configured for network security ({ipl_count} lists)."
+        return 1, f"IP access lists exist ({ipl_count}) but enableIpAccessLists not enabled. Enable in workspace settings."
     return 1, "IP access lists not detected. Configure network restrictions."
 
 
@@ -519,9 +536,15 @@ def _score_sec_004(data: dict) -> tuple[int, str]:
 def _score_sec_005(data: dict) -> tuple[int, str]:
     """Compliance requirements."""
     sec = _get(data, "SecurityCollector") or {}
-    if sec.get("security_settings"):
-        return 1, "Workspace security accessible; audit logging not verifiable from API. Enable system tables for full audit."
-    return 1, "Compliance not fully verified. Enable audit logging."
+    sec_settings = sec.get("security_settings", {}) or {}
+    # Check if key compliance controls are in place
+    dbfs_off = str(sec_settings.get("enableDbfsFileBrowser", "")).lower() == "false"
+    ipl_on = str(sec_settings.get("enableIpAccessLists", "")).lower() == "true"
+    if dbfs_off and ipl_on:
+        return 2, "Key compliance controls enforced: DBFS browser disabled, IP access lists enabled."
+    if sec_settings:
+        return 1, "Some workspace security settings configured; review DBFS browser, IP access lists for full compliance."
+    return 1, "Compliance not fully verified. Enable audit logging and workspace security settings."
 
 
 def _score_sec_006(data: dict) -> tuple[int, str]:
@@ -531,12 +554,13 @@ def _score_sec_006(data: dict) -> tuple[int, str]:
 
 def _score_sec_007(data: dict) -> tuple[int, str]:
     """Generic controls."""
-    compute = _get(data, "ComputeCollector") or {}
     sec = _get(data, "SecurityCollector") or {}
-    policy_count = compute.get("policy_count", 0) or 0
-    sec_settings = sec.get("security_settings", {})
-    if policy_count > 0 or sec_settings:
-        return 1, "Cluster policies and/or security settings present; workspace conf not verifiable from API."
+    sec_settings = sec.get("security_settings", {}) or {}
+    dbfs_disabled = sec_settings.get("enableDbfsFileBrowser", "").lower() == "false"
+    if dbfs_disabled:
+        return 2, "DBFS file browser disabled in workspace settings — generic controls enforced."
+    if sec_settings:
+        return 1, "Workspace security settings present; consider disabling DBFS file browser for compliance."
     return 1, "Generic controls not fully verified. Use policies and workspace conf."
 
 
@@ -553,9 +577,13 @@ def _score_rel_001(data: dict) -> tuple[int, str]:
 def _score_rel_002(data: dict) -> tuple[int, str]:
     """Resilient engine."""
     compute = _get(data, "ComputeCollector") or {}
-    cluster_count = compute.get("cluster_count", 0) or 0
+    clusters = compute.get("clusters", []) or []
+    photon_count = sum(1 for c in clusters if isinstance(c, dict) and c.get("runtime_engine") == "PHOTON")
+    if photon_count > 0:
+        return 2, f"Photon enabled on {photon_count} cluster(s) for better resilience."
+    cluster_count = compute.get("cluster_count", 0) or len(clusters)
     if cluster_count > 0:
-        return 1, "Photon usage not verifiable from cluster metadata. Use Photon for better resilience."
+        return 1, "Photon not detected on clusters. Use Photon for better resilience."
     return 1, "Photon not detected. Use Photon for better resilience."
 
 
@@ -571,9 +599,13 @@ def _score_rel_003(data: dict) -> tuple[int, str]:
 def _score_rel_004(data: dict) -> tuple[int, str]:
     """Auto retries."""
     ops = _get(data, "OperationsCollector") or {}
-    job_count = ops.get("job_count", 0) or 0
+    jobs = ops.get("jobs", []) or []
+    with_retries = sum(1 for j in jobs if isinstance(j, dict) and (j.get("max_retries") or 0) > 0)
+    if with_retries > 0:
+        return 2, f"{with_retries} job(s) configured with retries for resilience."
+    job_count = ops.get("job_count", 0) or len(jobs)
     if job_count > 0:
-        return 1, "Retry configuration not verifiable from API. Configure retries on jobs for resilience."
+        return 1, "Jobs present but none have max_retries > 0. Configure retries for resilience."
     return 0, "No jobs; add retries when creating jobs."
 
 
@@ -636,19 +668,29 @@ def _score_rel_011(data: dict) -> tuple[int, str]:
 def _score_rel_012(data: dict) -> tuple[int, str]:
     """ETL autoscaling."""
     ops = _get(data, "OperationsCollector") or {}
-    pipeline_count = ops.get("pipeline_count", 0) or 0
+    pipelines = ops.get("pipeline_states", []) or ops.get("pipelines", []) or []
+    with_autoscale = sum(1 for p in pipelines if isinstance(p, dict) and p.get("autoscale"))
+    pipeline_count = ops.get("pipeline_count", 0) or len(pipelines)
+    if with_autoscale > 0:
+        return 2, f"{with_autoscale} DLT pipeline(s) with autoscaling enabled."
     if pipeline_count > 0:
-        return 1, "DLT autoscaling not verifiable from pipeline metadata. Enable on DLT pipelines."
+        return 1, "DLT pipelines present but autoscaling not enabled. Enable on DLT pipelines."
     return 0, "No DLT pipelines. Use DLT with autoscaling."
 
 
 def _score_rel_013(data: dict) -> tuple[int, str]:
     """SQL warehouse autoscaling."""
     compute = _get(data, "ComputeCollector") or {}
-    warehouse_count = compute.get("warehouse_count", 0) or 0
+    warehouses = compute.get("warehouses", []) or []
+    with_autoscale = sum(1 for w in warehouses if isinstance(w, dict) and (
+        (w.get("max_num_clusters") or 0) > 1 or w.get("enable_serverless_compute") is True
+    ))
+    if with_autoscale > 0:
+        return 2, f"{with_autoscale} SQL warehouse(s) with multi-cluster or serverless autoscaling."
+    warehouse_count = compute.get("warehouse_count", 0) or len(warehouses)
     wh_configs = compute.get("warehouse_configs", [])
     if warehouse_count > 0 or wh_configs:
-        return 1, "Warehouse autoscaling not verifiable from API. Enable multi-cluster or serverless."
+        return 1, "Warehouses present but no multi-cluster or serverless. Enable for autoscaling."
     return 0, "No SQL warehouses. Enable multi-cluster or serverless for autoscaling."
 
 
@@ -692,9 +734,13 @@ def _score_rel_018(data: dict) -> tuple[int, str]:
 def _score_perf_001(data: dict) -> tuple[int, str]:
     """Scaling."""
     compute = _get(data, "ComputeCollector") or {}
-    cluster_count = compute.get("cluster_count", 0) or 0
+    clusters = compute.get("clusters", []) or []
+    with_autoscale = sum(1 for c in clusters if isinstance(c, dict) and c.get("autoscale"))
+    if with_autoscale > 0:
+        return 2, f"{with_autoscale} cluster(s) with autoscaling enabled."
+    cluster_count = compute.get("cluster_count", 0) or len(clusters)
     if cluster_count > 0:
-        return 1, "Cluster autoscaling not verifiable from API. Enable autoscaling when provisioning."
+        return 1, "Clusters present but autoscaling not enabled. Enable when provisioning."
     return 0, "No clusters. Configure autoscaling when adding compute."
 
 
@@ -711,9 +757,13 @@ def _score_perf_003(data: dict) -> tuple[int, str]:
 def _score_perf_004(data: dict) -> tuple[int, str]:
     """Parallel computation."""
     compute = _get(data, "ComputeCollector") or {}
-    cluster_count = compute.get("cluster_count", 0) or 0
+    clusters = compute.get("clusters", []) or []
+    total_workers = sum(c.get("num_workers", 0) or 0 for c in clusters if isinstance(c, dict))
+    if total_workers > 0:
+        return 2, f"Total {total_workers} workers across clusters — parallelism utilized."
+    cluster_count = compute.get("cluster_count", 0) or len(clusters)
     if cluster_count > 0:
-        return 1, "Worker count not verifiable from cluster metadata. Scale workers for throughput."
+        return 1, "Clusters present but worker count not available. Scale workers for throughput."
     return 1, "Parallelism not fully utilized. Scale workers for throughput."
 
 
@@ -725,9 +775,13 @@ def _score_perf_005(data: dict) -> tuple[int, str]:
 def _score_perf_006(data: dict) -> tuple[int, str]:
     """Larger clusters."""
     compute = _get(data, "ComputeCollector") or {}
-    cluster_count = compute.get("cluster_count", 0) or 0
+    clusters = compute.get("clusters", []) or []
+    max_workers = max((c.get("autoscale", {}).get("max_workers") or c.get("num_workers") or 0 for c in clusters if isinstance(c, dict)), default=0)
+    if max_workers > 0:
+        return 2, f"Clusters sized for scale (max {max_workers} workers). Right-size for workload."
+    cluster_count = compute.get("cluster_count", 0) or len(clusters)
     if cluster_count > 0:
-        return 1, "Cluster size not verifiable from API. Right-size for workload-appropriate scale."
+        return 1, "Clusters present but size not available. Right-size for workload-appropriate scale."
     return 0, "No clusters. Right-size when provisioning."
 
 
@@ -744,9 +798,13 @@ def _score_perf_008(data: dict) -> tuple[int, str]:
 def _score_perf_009(data: dict) -> tuple[int, str]:
     """Hardware awareness."""
     compute = _get(data, "ComputeCollector") or {}
-    cluster_count = compute.get("cluster_count", 0) or 0
-    if cluster_count > 0:
-        return 1, "Instance types not verifiable from cluster metadata. Match to workload."
+    clusters = compute.get("clusters", []) or []
+    if clusters:
+        types = set(c.get("node_type_id", "") for c in clusters if isinstance(c, dict) and c.get("node_type_id"))
+        if len(types) > 1:
+            return 2, f"Multiple instance types in use ({len(types)} types) — workload-aware selection."
+        if types:
+            return 1, f"Single instance type ({types.pop()}) across clusters. Consider workload-specific types."
     return 1, "Hardware awareness not verified. Match instance types to workload."
 
 
@@ -788,10 +846,14 @@ def _score_perf_016(data: dict) -> tuple[int, str]:
 def _score_perf_017(data: dict) -> tuple[int, str]:
     """Prewarming."""
     compute = _get(data, "ComputeCollector") or {}
+    warehouses = compute.get("warehouses", []) or []
+    photon_wh = sum(1 for w in warehouses if isinstance(w, dict) and w.get("enable_photon") is True)
+    if photon_wh > 0:
+        return 2, f"{photon_wh} SQL warehouse(s) with Photon enabled for latency-sensitive workloads."
+    warehouse_count = compute.get("warehouse_count", 0) or len(warehouses)
     wh_configs = compute.get("warehouse_configs", [])
-    warehouse_count = compute.get("warehouse_count", 0) or 0
     if warehouse_count > 0 or wh_configs:
-        return 1, "Prewarm/Photon not verifiable from warehouse config. Use for latency-sensitive workloads."
+        return 1, "Warehouses present but Photon not enabled. Enable for latency-sensitive workloads."
     return 1, "Prewarm not verified. Use for latency-sensitive workloads."
 
 
@@ -844,9 +906,13 @@ def _score_cost_001(data: dict) -> tuple[int, str]:
 def _score_cost_002(data: dict) -> tuple[int, str]:
     """Job clusters."""
     ops = _get(data, "OperationsCollector") or {}
-    job_count = ops.get("job_count", 0) or 0
+    jobs = ops.get("jobs", []) or []
+    using_job_clusters = sum(1 for j in jobs if isinstance(j, dict) and j.get("has_job_clusters") and not j.get("existing_cluster_id"))
+    if using_job_clusters > 0:
+        return 2, f"{using_job_clusters} job(s) using job clusters for cost efficiency."
+    job_count = ops.get("job_count", 0) or len(jobs)
     if job_count > 0:
-        return 1, "Job cluster usage not verifiable from API. Use job clusters for cost efficiency."
+        return 1, "Jobs present but not using job clusters. Use job clusters for cost efficiency."
     return 0, "Use job clusters instead of all-purpose clusters."
 
 
@@ -862,15 +928,32 @@ def _score_cost_003(data: dict) -> tuple[int, str]:
 def _score_cost_004(data: dict) -> tuple[int, str]:
     """Up-to-date runtimes."""
     compute = _get(data, "ComputeCollector") or {}
+    clusters = compute.get("clusters", []) or []
+    if clusters:
+        versions = [c.get("spark_version", "") for c in clusters if isinstance(c, dict) and c.get("spark_version")]
+        if versions:
+            # Check if any cluster uses a recent DBR (14.x or 15.x)
+            recent = [v for v in versions if any(v.startswith(f"{n}.") for n in range(14, 20))]
+            if recent:
+                return 2, f"Clusters use recent runtimes (e.g. {recent[0]}). {len(recent)}/{len(versions)} up-to-date."
+            return 1, f"Clusters detected with older runtimes (e.g. {versions[0]}). Upgrade to latest DBR."
     cluster_count = compute.get("cluster_count", 0) or 0
     if cluster_count > 0:
-        return 1, "Runtime version not verifiable from API. Keep DBR runtimes up to date."
+        return 1, "Clusters present; runtime versions not available. Keep DBR runtimes up to date."
     return 1, "Keep DBR runtimes up to date for security and performance."
 
 
 def _score_cost_005(data: dict) -> tuple[int, str]:
     """GPU right workloads."""
-    return 1, "GPU usage not verifiable from cluster metadata. Use only for ML training/inference."
+    compute = _get(data, "ComputeCollector") or {}
+    clusters = compute.get("clusters", []) or []
+    gpu_clusters = [c for c in clusters if isinstance(c, dict) and "gpu" in str(c.get("node_type_id", "")).lower()]
+    if gpu_clusters:
+        return 1, f"{len(gpu_clusters)} GPU cluster(s) detected. Ensure used only for ML training/inference."
+    cluster_count = compute.get("cluster_count", 0) or len(clusters)
+    if cluster_count > 0:
+        return 2, "No GPU clusters — cost-efficient instance selection."
+    return 1, "GPU usage not applicable. Use only for ML when needed."
 
 
 def _score_cost_006(data: dict) -> tuple[int, str]:
@@ -890,9 +973,13 @@ def _score_cost_007(data: dict) -> tuple[int, str]:
 def _score_cost_008(data: dict) -> tuple[int, str]:
     """Efficient compute size."""
     compute = _get(data, "ComputeCollector") or {}
-    cluster_count = compute.get("cluster_count", 0) or 0
+    clusters = compute.get("clusters", []) or []
+    with_autoscale = sum(1 for c in clusters if isinstance(c, dict) and c.get("autoscale"))
+    if with_autoscale > 0:
+        return 2, f"{with_autoscale} cluster(s) with autoscaling for right-sizing."
+    cluster_count = compute.get("cluster_count", 0) or len(clusters)
     if cluster_count > 0:
-        return 1, "Autoscaling not verifiable from cluster metadata. Enable for right-sizing."
+        return 1, "Clusters present but autoscaling not enabled. Enable for right-sizing."
     return 0, "Configure efficient compute size when provisioning."
 
 
@@ -904,21 +991,34 @@ def _score_cost_009(data: dict) -> tuple[int, str]:
 def _score_cost_010(data: dict) -> tuple[int, str]:
     """Auto-scaling."""
     compute = _get(data, "ComputeCollector") or {}
-    warehouse_count = compute.get("warehouse_count", 0) or 0
-    cluster_count = compute.get("cluster_count", 0) or 0
-    wh_configs = compute.get("warehouse_configs", [])
-    if warehouse_count > 0 or cluster_count > 0 or wh_configs:
-        return 1, "Auto-scaling not verifiable from API. Enable on warehouses and clusters for cost efficiency."
+    clusters = compute.get("clusters", []) or []
+    warehouses = compute.get("warehouses", []) or []
+    wh_autoscale = sum(1 for w in warehouses if isinstance(w, dict) and (w.get("max_num_clusters") or 0) > 1)
+    cluster_autoscale = sum(1 for c in clusters if isinstance(c, dict) and c.get("autoscale"))
+    total = wh_autoscale + cluster_autoscale
+    if total > 0:
+        return 2, f"Auto-scaling enabled: {cluster_autoscale} cluster(s), {wh_autoscale} warehouse(s) with multi-cluster."
+    warehouse_count = compute.get("warehouse_count", 0) or len(warehouses)
+    cluster_count = compute.get("cluster_count", 0) or len(clusters)
+    if warehouse_count > 0 or cluster_count > 0:
+        return 1, "Compute present but auto-scaling not enabled. Enable on warehouses and clusters."
     return 0, "Enable auto-scaling for cost efficiency."
 
 
 def _score_cost_011(data: dict) -> tuple[int, str]:
     """Auto-termination."""
     compute = _get(data, "ComputeCollector") or {}
-    warehouse_count = compute.get("warehouse_count", 0) or 0
-    cluster_count = compute.get("cluster_count", 0) or 0
+    clusters = compute.get("clusters", []) or []
+    warehouses = compute.get("warehouses", []) or []
+    wh_autostop = sum(1 for w in warehouses if isinstance(w, dict) and (w.get("auto_stop_mins") or 0) > 0)
+    cluster_autostop = sum(1 for c in clusters if isinstance(c, dict) and (c.get("auto_termination_minutes") or 0) > 0)
+    total = wh_autostop + cluster_autostop
+    if total > 0:
+        return 2, f"Auto-termination configured: {cluster_autostop} cluster(s), {wh_autostop} warehouse(s)."
+    warehouse_count = compute.get("warehouse_count", 0) or len(warehouses)
+    cluster_count = compute.get("cluster_count", 0) or len(clusters)
     if warehouse_count > 0 or cluster_count > 0:
-        return 1, "Auto-termination not verifiable from API. Configure auto-stop on warehouses and clusters."
+        return 1, "Compute present but auto-termination not configured. Configure auto-stop on warehouses and clusters."
     return 0, "Enable auto-termination when provisioning."
 
 
@@ -935,9 +1035,13 @@ def _score_cost_013(data: dict) -> tuple[int, str]:
 def _score_cost_014(data: dict) -> tuple[int, str]:
     """Tag clusters."""
     compute = _get(data, "ComputeCollector") or {}
-    cluster_count = compute.get("cluster_count", 0) or 0
+    clusters = compute.get("clusters", []) or []
+    with_tags = sum(1 for c in clusters if isinstance(c, dict) and len(c.get("custom_tags") or {}) > 0)
+    if with_tags > 0:
+        return 2, f"{with_tags} cluster(s) with custom tags for cost allocation."
+    cluster_count = compute.get("cluster_count", 0) or len(clusters)
     if cluster_count > 0:
-        return 1, "Cluster tagging not verifiable from API. Tag clusters for cost allocation."
+        return 1, "Clusters present but no custom tags. Tag clusters for cost allocation."
     return 0, "Tag clusters for chargeback and cost monitoring."
 
 

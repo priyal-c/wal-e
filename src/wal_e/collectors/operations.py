@@ -14,13 +14,14 @@ class OperationsCollector(BaseCollector):
         """Collect jobs, pipelines, serving endpoints, repos, init scripts, groups, secret scopes."""
         findings: dict[str, Any] = {
             "job_count": 0,
-            "job_names": [],
+            "jobs": [],
             "pipeline_count": 0,
-            "pipeline_states": [],
+            "pipelines": [],
             "endpoint_count": 0,
+            "endpoints": [],
             "repo_count": 0,
             "init_script_count": 0,
-            "init_script_status": [],
+            "init_scripts": [],
             "group_count": 0,
             "scope_count": 0,
         }
@@ -30,11 +31,19 @@ class OperationsCollector(BaseCollector):
         if ok and data:
             jobs = data.get("jobs", []) or []
             findings["job_count"] = len(jobs)
-            findings["job_names"] = [
-                j.get("settings", {}).get("name", j.get("job_name", j.get("name", "")))
-                for j in jobs
-                if isinstance(j, dict)
-            ][:50]
+            for j in jobs:
+                if isinstance(j, dict):
+                    settings = j.get("settings", {}) or {}
+                    job_clusters = settings.get("job_clusters") or []
+                    findings["jobs"].append({
+                        "job_id": j.get("job_id"),
+                        "name": settings.get("name", j.get("job_name", j.get("name", ""))),
+                        "job_type": settings.get("job_type") or j.get("job_type"),
+                        "has_git_source": bool(settings.get("git_source") or j.get("git_source")),
+                        "max_retries": settings.get("max_retries") or j.get("max_retries"),
+                        "has_existing_cluster_id": bool(settings.get("existing_cluster_id") or j.get("existing_cluster_id")),
+                        "has_job_clusters": bool(job_clusters),
+                    })
 
         # Pipelines
         data, ok = self.run_api_call("/api/2.0/pipelines")
@@ -43,19 +52,24 @@ class OperationsCollector(BaseCollector):
             findings["pipeline_count"] = len(pipelines)
             for p in pipelines:
                 if isinstance(p, dict):
-                    state = p.get("state") or p.get("pipeline_id")
-                    if state:
-                        findings["pipeline_states"].append({
-                            "id": p.get("pipeline_id"),
-                            "name": p.get("name"),
-                            "state": state,
-                        })
+                    findings["pipelines"].append({
+                        "pipeline_id": p.get("pipeline_id"),
+                        "name": p.get("name"),
+                        "state": p.get("state"),
+                        "creator_user_name": p.get("creator_user_name"),
+                    })
 
         # Serving endpoints
         data, ok = self.run_api_call("/api/2.0/serving-endpoints")
         if ok and data:
             endpoints = data.get("endpoints", []) or []
             findings["endpoint_count"] = len(endpoints)
+            for e in endpoints:
+                if isinstance(e, dict):
+                    findings["endpoints"].append({
+                        "name": e.get("name"),
+                        "state": e.get("state"),
+                    })
 
         # Repos
         data, ok = self.run_api_call("/api/2.0/repos")
@@ -63,14 +77,14 @@ class OperationsCollector(BaseCollector):
             repos = data.get("repos", []) or []
             findings["repo_count"] = len(repos)
 
-        # Global init scripts
-        data, ok = self.run_api_call("/api/2.0/global-init-scripts/list")
+        # Global init scripts - endpoint is /api/2.0/global-init-scripts (no /list)
+        data, ok = self.run_api_call("/api/2.0/global-init-scripts")
         if ok and data:
             scripts = data.get("scripts", []) or []
             findings["init_script_count"] = len(scripts)
             for s in scripts:
                 if isinstance(s, dict):
-                    findings["init_script_status"].append({
+                    findings["init_scripts"].append({
                         "name": s.get("name"),
                         "enabled": s.get("enabled"),
                         "script_id": s.get("script_id"),
