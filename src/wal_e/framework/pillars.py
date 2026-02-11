@@ -1,8 +1,9 @@
 """
 WAL-E Framework: Well-Architected Lakehouse pillars and best practices.
 
-Defines all 7 pillars with 99 best practices from the Databricks
-Well-Architected Lakehouse Framework.
+Defines all 7 pillars with 128 best practices from the Databricks
+Well-Architected Lakehouse Framework plus Databricks published cheat sheets
+and best-practice articles (docs.databricks.com/aws/en/getting-started/best-practices).
 """
 
 from dataclasses import dataclass, field
@@ -131,6 +132,28 @@ def _get_all_pillars() -> list[Pillar]:
                 pillar="Data & AI Governance",
                 principle="Enforce standardized formats",
                 domains=["Data Format", "Delta Lake", "Ingest"],
+            ),
+            # --- NEW: from UC Best Practices & Admin Cheat Sheet ---
+            BestPractice(
+                id="gov-013",
+                name="Account-level group management",
+                pillar="Data & AI Governance",
+                principle="Establish governance processes",
+                domains=["IAM", "Groups", "SCIM", "Identity"],
+            ),
+            BestPractice(
+                id="gov-014",
+                name="Prefer managed tables",
+                pillar="Data & AI Governance",
+                principle="Manage metadata centrally",
+                domains=["Unity Catalog", "Managed Tables", "Storage"],
+            ),
+            BestPractice(
+                id="gov-015",
+                name="BROWSE privilege for discovery",
+                pillar="Data & AI Governance",
+                principle="Track lineage and discovery",
+                domains=["Unity Catalog", "Data Discovery", "Privileges"],
             ),
         ],
     )
@@ -404,6 +427,28 @@ def _get_all_pillars() -> list[Pillar]:
                 principle="Monitoring and capacity",
                 domains=["Databricks SQL", "Metrics", "Monitoring"],
             ),
+            # --- NEW: from CI/CD Best Practices, Jobs Cheat Sheet ---
+            BestPractice(
+                id="ops-021",
+                name="Automated rollbacks",
+                pillar="Operational Excellence",
+                principle="Standardize CI/CD and MLOps",
+                domains=["CI/CD", "Rollback", "Deployment"],
+            ),
+            BestPractice(
+                id="ops-022",
+                name="Workload identity federation",
+                pillar="Operational Excellence",
+                principle="Standardize CI/CD and MLOps",
+                domains=["CI/CD", "Authentication", "Identity Federation"],
+            ),
+            BestPractice(
+                id="ops-023",
+                name="Restart long-running clusters",
+                pillar="Operational Excellence",
+                principle="Monitoring and capacity",
+                domains=["Clusters", "Security", "Patching"],
+            ),
         ],
     )
 
@@ -465,6 +510,42 @@ def _get_all_pillars() -> list[Pillar]:
                 pillar="Security",
                 principle="Compliance",
                 domains=["Security", "Policies", "Controls"],
+            ),
+            # --- NEW: from Admin Cheat Sheet, Jobs Cheat Sheet, UC Best Practices ---
+            BestPractice(
+                id="sec-008",
+                name="SSO configuration",
+                pillar="Security",
+                principle="Data protection",
+                domains=["SSO", "Identity", "Authentication"],
+            ),
+            BestPractice(
+                id="sec-009",
+                name="SCIM provisioning",
+                pillar="Security",
+                principle="Least privilege",
+                domains=["SCIM", "Identity", "Provisioning"],
+            ),
+            BestPractice(
+                id="sec-010",
+                name="Service principals for automation",
+                pillar="Security",
+                principle="Least privilege",
+                domains=["Service Principals", "Automation", "Identity"],
+            ),
+            BestPractice(
+                id="sec-011",
+                name="Customer-managed VPC",
+                pillar="Security",
+                principle="Network security",
+                domains=["VPC", "Private Link", "Network"],
+            ),
+            BestPractice(
+                id="sec-012",
+                name="Restrict DBFS root data storage",
+                pillar="Security",
+                principle="Data protection",
+                domains=["DBFS", "Storage", "Data Protection"],
             ),
         ],
     )
@@ -604,6 +685,14 @@ def _get_all_pillars() -> list[Pillar]:
                 pillar="Reliability",
                 principle="Backup and recovery",
                 domains=["DR", "Replication", "Availability"],
+            ),
+            # --- NEW: from Jobs Cheat Sheet, UC Best Practices ---
+            BestPractice(
+                id="rel-019",
+                name="Service principal job ownership",
+                pillar="Reliability",
+                principle="Managed services",
+                domains=["Service Principals", "Jobs", "Reliability"],
             ),
         ],
     )
@@ -765,6 +854,35 @@ def _get_all_pillars() -> list[Pillar]:
                 principle="Monitoring",
                 domains=["Jobs", "Cluster", "Monitoring"],
             ),
+            # --- NEW: from Delta Lake Best Practices, Compute Cheat Sheet ---
+            BestPractice(
+                id="perf-022",
+                name="Predictive optimization",
+                pillar="Performance",
+                principle="Query optimization",
+                domains=["Predictive Optimization", "OPTIMIZE", "VACUUM"],
+            ),
+            BestPractice(
+                id="perf-023",
+                name="Liquid clustering",
+                pillar="Performance",
+                principle="Data patterns",
+                domains=["Liquid Clustering", "Delta Lake", "Data Layout"],
+            ),
+            BestPractice(
+                id="perf-024",
+                name="Graviton instance types",
+                pillar="Performance",
+                principle="Scaling and serverless",
+                domains=["Graviton", "Instance Types", "AWS"],
+            ),
+            BestPractice(
+                id="perf-025",
+                name="Standard access mode",
+                pillar="Performance",
+                principle="Scaling and serverless",
+                domains=["Access Mode", "Compute", "UC"],
+            ),
         ],
     )
 
@@ -903,6 +1021,21 @@ def _get_all_pillars() -> list[Pillar]:
                 pillar="Cost",
                 principle="Optimized formats and compute",
                 domains=["Reserved", "Spot", "Instance Savings"],
+            ),
+            # --- NEW: from Compute Cheat Sheet, Admin Cheat Sheet ---
+            BestPractice(
+                id="cost-019",
+                name="Spot instance strategy",
+                pillar="Cost",
+                principle="Right-sizing",
+                domains=["Spot", "AWS", "Compute", "Cost"],
+            ),
+            BestPractice(
+                id="cost-020",
+                name="Budget alerts",
+                pillar="Cost",
+                principle="Cost monitoring",
+                domains=["Budget", "Alerts", "Cost Monitoring"],
             ),
         ],
     )

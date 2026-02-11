@@ -3,6 +3,9 @@ WAL-E Scoring Engine: Evaluates collected workspace data against WAL best practi
 
 Scores each best practice 0-2 based on collected data from Databricks API/CLI.
 Returns ScoredAssessment with pillar averages, overall score, and maturity level.
+
+Includes expanded best practices from Databricks cheat sheets and best-practice
+articles (docs.databricks.com/aws/en/getting-started/best-practices).
 """
 
 from __future__ import annotations
@@ -174,6 +177,43 @@ def _score_gov_012(data: dict) -> tuple[int, str]:
     if gov.get("metastore_name") and (gov.get("catalog_count", 0) or 0) > 0:
         return 1, "Unity Catalog + Delta Lake in use but cannot verify all tables use Delta format from API."
     return 0, "Standardized formats not verified. Use Delta Lake as default format."
+
+
+def _score_gov_013(data: dict) -> tuple[int, str]:
+    """Account-level group management (Admin Cheat Sheet + UC Best Practices)."""
+    sec = _get(data, "SecurityCollector") or {}
+    scim_groups = sec.get("scim_groups", []) or []
+    scim_count = sec.get("scim_group_count", 0) or len(scim_groups)
+    # Groups with externalId are IdP-synced (account-level)
+    idp_synced = sum(1 for g in scim_groups if isinstance(g, dict) and g.get("externalId"))
+    if idp_synced > 0:
+        return 2, f"{idp_synced}/{scim_count} groups IdP-synced via SCIM. Account-level group management in place."
+    if scim_count > 0:
+        return 1, f"{scim_count} groups exist but none are IdP-synced. Sync groups from your identity provider via SCIM."
+    return 0, "No SCIM groups detected. Use account-level groups synced from your IdP."
+
+
+def _score_gov_014(data: dict) -> tuple[int, str]:
+    """Prefer managed tables (UC Best Practices)."""
+    gov = _get(data, "GovernanceCollector") or {}
+    ext_loc = gov.get("external_location_count", 0) or 0
+    catalog_count = gov.get("catalog_count", 0) or 0
+    if catalog_count > 0 and ext_loc == 0:
+        return 2, "Unity Catalog in use with no external locations; likely using managed tables."
+    if catalog_count > 0 and ext_loc > 0:
+        ratio = ext_loc / max(catalog_count, 1)
+        if ratio > 0.5:
+            return 0, f"{ext_loc} external locations vs {catalog_count} catalogs. Migrate external tables to managed tables."
+        return 1, f"Some external locations ({ext_loc}). Prefer UC managed tables for new tables."
+    return 0, "Unity Catalog not detected. Use UC managed tables for full governance."
+
+
+def _score_gov_015(data: dict) -> tuple[int, str]:
+    """BROWSE privilege for discovery (UC Best Practices)."""
+    gov = _get(data, "GovernanceCollector") or {}
+    if gov.get("metastore_name") and (gov.get("catalog_count", 0) or 0) > 0:
+        return 1, "Unity Catalog in use. Grant BROWSE privilege on catalogs to All account users for data discovery."
+    return 0, "Unity Catalog not detected. BROWSE privilege requires UC. Enable UC first."
 
 
 # ---------------------------------------------------------------------------
@@ -496,6 +536,38 @@ def _score_ops_020(data: dict) -> tuple[int, str]:
     return 1, "Platform monitoring tools not verified. Use Databricks SQL."
 
 
+def _score_ops_021(data: dict) -> tuple[int, str]:
+    """Automated rollbacks (CI/CD Best Practices)."""
+    ops = _get(data, "OperationsCollector") or {}
+    jobs = ops.get("jobs", []) or []
+    git_jobs = sum(1 for j in jobs if isinstance(j, dict) and j.get("has_git_source"))
+    if git_jobs > 0:
+        return 1, f"{git_jobs} job(s) use Git source. Verify automated rollback mechanisms in CI/CD pipelines."
+    return 0, "No Git-backed jobs detected. Implement CI/CD with automated rollback mechanisms."
+
+
+def _score_ops_022(data: dict) -> tuple[int, str]:
+    """Workload identity federation (CI/CD Best Practices)."""
+    sec = _get(data, "SecurityCollector") or {}
+    sp_count = sec.get("service_principal_count", 0) or 0
+    if sp_count > 0:
+        return 1, f"{sp_count} service principal(s) exist. Verify workload identity federation for CI/CD auth (eliminates PATs)."
+    return 0, "No service principals. Use workload identity federation for secure CI/CD authentication."
+
+
+def _score_ops_023(data: dict) -> tuple[int, str]:
+    """Restart long-running clusters (Jobs Cheat Sheet)."""
+    compute = _get(data, "ComputeCollector") or {}
+    clusters = compute.get("clusters", []) or []
+    running = [c for c in clusters if isinstance(c, dict) and c.get("state") == "RUNNING"]
+    no_auto_term = [c for c in running if not c.get("auto_termination_minutes")]
+    if no_auto_term:
+        return 0, f"{len(no_auto_term)} running cluster(s) without auto-termination. Restart periodically for security patches."
+    if running:
+        return 1, f"{len(running)} running cluster(s) with auto-termination. Verify periodic restarts for runtime patches."
+    return 2, "No long-running clusters detected."
+
+
 # ---------------------------------------------------------------------------
 # Security scoring functions
 # ---------------------------------------------------------------------------
@@ -562,6 +634,66 @@ def _score_sec_007(data: dict) -> tuple[int, str]:
     if sec_settings:
         return 1, "Workspace security settings present; consider disabling DBFS file browser for compliance."
     return 1, "Generic controls not fully verified. Use policies and workspace conf."
+
+
+def _score_sec_008(data: dict) -> tuple[int, str]:
+    """SSO configuration (Admin Cheat Sheet)."""
+    sec = _get(data, "SecurityCollector") or {}
+    scim_groups = sec.get("scim_groups", []) or []
+    # If SCIM groups with externalId exist, SSO is likely configured
+    idp_synced = sum(1 for g in scim_groups if isinstance(g, dict) and g.get("externalId"))
+    if idp_synced > 0:
+        return 2, f"IdP-synced groups detected ({idp_synced}), indicating SSO is configured."
+    scim_count = sec.get("scim_group_count", 0) or 0
+    if scim_count > 0:
+        return 1, "Groups exist but no IdP sync detected. Configure SSO via your identity provider."
+    return 1, "SSO configuration not verifiable from workspace API. Set up SSO via identity provider."
+
+
+def _score_sec_009(data: dict) -> tuple[int, str]:
+    """SCIM provisioning (Admin Cheat Sheet + UC Best Practices)."""
+    sec = _get(data, "SecurityCollector") or {}
+    scim_groups = sec.get("scim_groups", []) or []
+    idp_synced = sum(1 for g in scim_groups if isinstance(g, dict) and g.get("externalId"))
+    if idp_synced >= 3:
+        return 2, f"{idp_synced} IdP-synced SCIM groups. Automated provisioning in place."
+    if idp_synced > 0:
+        return 1, f"Only {idp_synced} IdP-synced group(s). Expand SCIM provisioning to all groups."
+    return 0, "No SCIM-synced groups detected. Set up SCIM provisioning from your identity provider."
+
+
+def _score_sec_010(data: dict) -> tuple[int, str]:
+    """Service principals for automation (Admin Cheat Sheet + Jobs Cheat Sheet)."""
+    sec = _get(data, "SecurityCollector") or {}
+    sp_count = sec.get("service_principal_count", 0) or 0
+    if sp_count >= 3:
+        return 2, f"{sp_count} service principals configured for automation."
+    if sp_count > 0:
+        return 1, f"Only {sp_count} service principal(s). Create more for production jobs and third-party integrations."
+    return 0, "No service principals detected. Use service principals for jobs and external tool authentication."
+
+
+def _score_sec_011(data: dict) -> tuple[int, str]:
+    """Customer-managed VPC (Admin Cheat Sheet)."""
+    # VPC/Private Link not verifiable from workspace API
+    sec = _get(data, "SecurityCollector") or {}
+    sec_settings = sec.get("security_settings", {}) or {}
+    ipl_on = str(sec_settings.get("enableIpAccessLists", "")).lower() == "true"
+    if ipl_on:
+        return 1, "IP access lists enabled. Verify customer-managed VPC and Private Link for network-level security."
+    return 0, "No network-level controls detected. Configure customer-managed VPC with Private Link."
+
+
+def _score_sec_012(data: dict) -> tuple[int, str]:
+    """Restrict DBFS root data storage (Jobs Cheat Sheet)."""
+    sec = _get(data, "SecurityCollector") or {}
+    sec_settings = sec.get("security_settings", {}) or {}
+    dbfs_off = str(sec_settings.get("enableDbfsFileBrowser", "")).lower() == "false"
+    if dbfs_off:
+        return 2, "DBFS file browser disabled — data exfiltration via DBFS root restricted."
+    if sec_settings:
+        return 0, "DBFS file browser is ENABLED. Disable immediately and migrate data out of DBFS root."
+    return 1, "DBFS root access not verifiable. Disable DBFS file browser and avoid storing data in DBFS root."
 
 
 # ---------------------------------------------------------------------------
@@ -724,6 +856,27 @@ def _score_rel_017(data: dict) -> tuple[int, str]:
 def _score_rel_018(data: dict) -> tuple[int, str]:
     """DR pattern."""
     return 1, "DR pattern not verifiable from API. Document replication and RTO/RPO."
+
+
+def _score_rel_019(data: dict) -> tuple[int, str]:
+    """Service principal job ownership (Jobs Cheat Sheet + UC Best Practices)."""
+    sec = _get(data, "SecurityCollector") or {}
+    ops = _get(data, "OperationsCollector") or {}
+    sp_count = sec.get("service_principal_count", 0) or 0
+    sp_names = [sp.get("displayName", "").lower() for sp in (sec.get("service_principals", []) or []) if isinstance(sp, dict)]
+    jobs = ops.get("jobs", []) or []
+    # Check if any job creators look like service principals
+    sp_owned = sum(1 for j in jobs if isinstance(j, dict) and any(
+        spn in str(j.get("creator_user_name", "")).lower() for spn in sp_names
+    )) if sp_names else 0
+    job_count = ops.get("job_count", 0) or len(jobs)
+    if sp_count > 0 and sp_owned > 0:
+        return 2, f"{sp_owned}/{job_count} job(s) owned by service principals for reliability."
+    if sp_count > 0:
+        return 1, f"Service principals exist but job ownership not verified. Transfer production job ownership to service principals."
+    if job_count > 0:
+        return 0, "Jobs owned by individual users. Create service principals and transfer production job ownership."
+    return 1, "No jobs detected. Use service principals when creating production jobs."
 
 
 # ---------------------------------------------------------------------------
@@ -891,6 +1044,63 @@ def _score_perf_021(data: dict) -> tuple[int, str]:
     if job_count > 0:
         return 2, f"Jobs enable cluster/job monitoring ({job_count} jobs)."
     return 0, "No jobs. Create jobs for operational visibility."
+
+
+def _score_perf_022(data: dict) -> tuple[int, str]:
+    """Predictive optimization (Delta Lake Best Practices)."""
+    gov = _get(data, "GovernanceCollector") or {}
+    if gov.get("metastore_name") and (gov.get("catalog_count", 0) or 0) > 0:
+        return 1, "Unity Catalog in use. Enable predictive optimization for auto OPTIMIZE/VACUUM on managed tables."
+    return 0, "Unity Catalog not detected. Enable UC managed tables and then predictive optimization."
+
+
+def _score_perf_023(data: dict) -> tuple[int, str]:
+    """Liquid clustering (Delta Lake Best Practices)."""
+    gov = _get(data, "GovernanceCollector") or {}
+    if gov.get("metastore_name"):
+        return 1, "Unity Catalog in use. Migrate from Z-ORDER/partitioning to liquid clustering for better performance."
+    return 0, "Liquid clustering requires Delta Lake. Adopt Delta tables with liquid clustering."
+
+
+def _score_perf_024(data: dict) -> tuple[int, str]:
+    """Graviton instance types (Compute Cheat Sheet)."""
+    compute = _get(data, "ComputeCollector") or {}
+    clusters = compute.get("clusters", []) or []
+    if not clusters:
+        return 1, "No clusters to evaluate. Use Graviton instance types for best price-to-performance ratio."
+    # Graviton instances on AWS contain patterns like "m6g", "m7g", "c6g", "r6g", etc.
+    graviton_patterns = ("g.", "gd.", "gn.")
+    graviton_count = sum(
+        1 for c in clusters if isinstance(c, dict) and c.get("node_type_id") and
+        any(p in str(c.get("node_type_id", "")).lower() for p in graviton_patterns)
+    )
+    if graviton_count > 0:
+        return 2, f"{graviton_count}/{len(clusters)} cluster(s) using Graviton instances for optimal price-performance."
+    return 0, f"No Graviton instances detected across {len(clusters)} clusters. Use Graviton for best price-to-performance."
+
+
+def _score_perf_025(data: dict) -> tuple[int, str]:
+    """Standard access mode (Compute Cheat Sheet + UC Best Practices)."""
+    compute = _get(data, "ComputeCollector") or {}
+    clusters = compute.get("clusters", []) or []
+    if not clusters:
+        return 1, "No clusters. Use standard access mode when creating clusters for UC data isolation."
+    standard = sum(
+        1 for c in clusters if isinstance(c, dict) and
+        str(c.get("data_security_mode", "")).upper() in ("USER_ISOLATION", "STANDARD")
+    )
+    dedicated = sum(
+        1 for c in clusters if isinstance(c, dict) and
+        str(c.get("data_security_mode", "")).upper() in ("SINGLE_USER", "DEDICATED")
+    )
+    none_mode = len(clusters) - standard - dedicated
+    if standard > 0 and none_mode == 0:
+        return 2, f"{standard}/{len(clusters)} cluster(s) use standard/shared access mode with UC isolation."
+    if standard > 0:
+        return 1, f"{standard}/{len(clusters)} cluster(s) use standard mode. {none_mode} have no access mode set. Configure all for UC."
+    if none_mode > 0:
+        return 0, f"{none_mode}/{len(clusters)} cluster(s) have no access mode set. Use standard access mode for UC."
+    return 1, f"Clusters use dedicated mode. Prefer standard access mode unless functionality requires dedicated."
 
 
 # ---------------------------------------------------------------------------
@@ -1065,6 +1275,29 @@ def _score_cost_018(data: dict) -> tuple[int, str]:
     return 1, "Reserved/Spot usage not verifiable from API. Evaluate instance savings."
 
 
+def _score_cost_019(data: dict) -> tuple[int, str]:
+    """Spot instance strategy (Compute Cheat Sheet)."""
+    compute = _get(data, "ComputeCollector") or {}
+    clusters = compute.get("clusters", []) or []
+    if not clusters:
+        return 1, "No clusters to evaluate. Use spot instances for fault-tolerant batch workloads."
+    spot_count = sum(
+        1 for c in clusters if isinstance(c, dict) and (
+            str(c.get("availability", "")).upper() in ("SPOT", "SPOT_WITH_FALLBACK") or
+            (c.get("first_on_demand") is not None and c.get("first_on_demand") == 0)
+        )
+    )
+    if spot_count > 0:
+        return 2, f"{spot_count}/{len(clusters)} cluster(s) use spot instances for cost savings."
+    return 1, f"No spot instance usage detected across {len(clusters)} clusters. Evaluate spot for batch workloads."
+
+
+def _score_cost_020(data: dict) -> tuple[int, str]:
+    """Budget alerts (Admin Cheat Sheet)."""
+    # Budget alerts are account-level, not verifiable from workspace API
+    return 1, "Budget alerts are account-level and not verifiable from workspace API. Configure budget alerts in Account Console."
+
+
 # ---------------------------------------------------------------------------
 # Scoring Registry
 # ---------------------------------------------------------------------------
@@ -1082,6 +1315,9 @@ SCORING_REGISTRY: dict[str, Callable[..., tuple[int, str]]] = {
     "gov-010": _score_gov_010,
     "gov-011": _score_gov_011,
     "gov-012": _score_gov_012,
+    "gov-013": _score_gov_013,
+    "gov-014": _score_gov_014,
+    "gov-015": _score_gov_015,
     "int-001": _score_int_001,
     "int-002": _score_int_002,
     "int-003": _score_int_003,
@@ -1117,6 +1353,9 @@ SCORING_REGISTRY: dict[str, Callable[..., tuple[int, str]]] = {
     "ops-018": _score_ops_018,
     "ops-019": _score_ops_019,
     "ops-020": _score_ops_020,
+    "ops-021": _score_ops_021,
+    "ops-022": _score_ops_022,
+    "ops-023": _score_ops_023,
     "sec-001": _score_sec_001,
     "sec-002": _score_sec_002,
     "sec-003": _score_sec_003,
@@ -1124,6 +1363,11 @@ SCORING_REGISTRY: dict[str, Callable[..., tuple[int, str]]] = {
     "sec-005": _score_sec_005,
     "sec-006": _score_sec_006,
     "sec-007": _score_sec_007,
+    "sec-008": _score_sec_008,
+    "sec-009": _score_sec_009,
+    "sec-010": _score_sec_010,
+    "sec-011": _score_sec_011,
+    "sec-012": _score_sec_012,
     "rel-001": _score_rel_001,
     "rel-002": _score_rel_002,
     "rel-003": _score_rel_003,
@@ -1142,6 +1386,7 @@ SCORING_REGISTRY: dict[str, Callable[..., tuple[int, str]]] = {
     "rel-016": _score_rel_016,
     "rel-017": _score_rel_017,
     "rel-018": _score_rel_018,
+    "rel-019": _score_rel_019,
     "perf-001": _score_perf_001,
     "perf-002": _score_perf_002,
     "perf-003": _score_perf_003,
@@ -1163,6 +1408,10 @@ SCORING_REGISTRY: dict[str, Callable[..., tuple[int, str]]] = {
     "perf-019": _score_perf_019,
     "perf-020": _score_perf_020,
     "perf-021": _score_perf_021,
+    "perf-022": _score_perf_022,
+    "perf-023": _score_perf_023,
+    "perf-024": _score_perf_024,
+    "perf-025": _score_perf_025,
     "cost-001": _score_cost_001,
     "cost-002": _score_cost_002,
     "cost-003": _score_cost_003,
@@ -1181,6 +1430,8 @@ SCORING_REGISTRY: dict[str, Callable[..., tuple[int, str]]] = {
     "cost-016": _score_cost_016,
     "cost-017": _score_cost_017,
     "cost-018": _score_cost_018,
+    "cost-019": _score_cost_019,
+    "cost-020": _score_cost_020,
 }
 
 

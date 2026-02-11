@@ -35,6 +35,8 @@ class ComputeCollector(BaseCollector):
             )
             for c in clusters:
                 if isinstance(c, dict):
+                    # Extract aws_attributes for spot instance analysis
+                    aws_attrs = c.get("aws_attributes") or {}
                     findings["clusters"].append({
                         "cluster_name": c.get("cluster_name"),
                         "cluster_id": c.get("cluster_id"),
@@ -49,6 +51,11 @@ class ComputeCollector(BaseCollector):
                         "policy_id": c.get("policy_id"),
                         "custom_tags": c.get("custom_tags"),
                         "cluster_source": c.get("cluster_source"),
+                        # --- NEW fields ---
+                        "data_security_mode": c.get("data_security_mode"),
+                        "first_on_demand": aws_attrs.get("first_on_demand") if isinstance(aws_attrs, dict) else None,
+                        "availability": aws_attrs.get("availability") if isinstance(aws_attrs, dict) else None,
+                        "spot_bid_price_percent": aws_attrs.get("spot_bid_price_percent") if isinstance(aws_attrs, dict) else None,
                     })
 
         # SQL warehouses

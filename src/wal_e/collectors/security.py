@@ -14,6 +14,11 @@ class SecurityCollector(BaseCollector):
             "ip_access_list_count": 0,
             "ip_access_lists": [],
             "token_info": {},
+            # --- NEW fields for expanded best practices ---
+            "service_principal_count": 0,
+            "service_principals": [],
+            "scim_groups": [],
+            "scim_group_count": 0,
         }
 
         # Workspace conf - MUST pass keys as query params
@@ -45,5 +50,35 @@ class SecurityCollector(BaseCollector):
                     if isinstance(t, dict)
                 ][:10],
             }
+
+        # --- NEW: Service Principals (SCIM API) ---
+        data, ok = self.run_api_call("/api/2.0/preview/scim/v2/ServicePrincipals?count=100")
+        if ok and data and isinstance(data, dict):
+            resources = data.get("Resources", []) or []
+            findings["service_principal_count"] = data.get("totalResults", len(resources))
+            findings["service_principals"] = [
+                {
+                    "displayName": sp.get("displayName", ""),
+                    "applicationId": sp.get("applicationId", ""),
+                    "active": sp.get("active", True),
+                }
+                for sp in resources
+                if isinstance(sp, dict)
+            ][:50]
+
+        # --- NEW: SCIM Groups (to check for IdP-synced groups via externalId) ---
+        data, ok = self.run_api_call("/api/2.0/preview/scim/v2/Groups?count=200")
+        if ok and data and isinstance(data, dict):
+            resources = data.get("Resources", []) or []
+            findings["scim_group_count"] = data.get("totalResults", len(resources))
+            findings["scim_groups"] = [
+                {
+                    "displayName": g.get("displayName", ""),
+                    "externalId": g.get("externalId"),
+                    "id": g.get("id"),
+                }
+                for g in resources
+                if isinstance(g, dict)
+            ][:100]
 
         return findings

@@ -43,6 +43,8 @@ class OperationsCollector(BaseCollector):
                         "max_retries": settings.get("max_retries") or j.get("max_retries"),
                         "has_existing_cluster_id": bool(settings.get("existing_cluster_id") or j.get("existing_cluster_id")),
                         "has_job_clusters": bool(job_clusters),
+                        # --- NEW: creator for service principal ownership check ---
+                        "creator_user_name": j.get("creator_user_name", ""),
                     })
 
         # Pipelines
