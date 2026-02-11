@@ -4,10 +4,48 @@ from __future__ import annotations
 
 import configparser
 import os
+import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
+
+
+# Cloud provider detection patterns based on Databricks workspace URLs
+_CLOUD_PATTERNS: list[tuple[str, str]] = [
+    # Azure: *.azuredatabricks.net
+    (r"\.azuredatabricks\.net", "azure"),
+    # GCP: *.gcp.databricks.com
+    (r"\.gcp\.databricks\.com", "gcp"),
+    # AWS: *.cloud.databricks.com or any other *.databricks.com
+    (r"\.cloud\.databricks\.com", "aws"),
+    (r"\.databricks\.com", "aws"),  # fallback for AWS
+]
+
+
+def detect_cloud_provider(host: str) -> str:
+    """
+    Detect cloud provider from Databricks workspace URL.
+
+    Returns:
+        "aws", "azure", "gcp", or "unknown"
+    """
+    if not host:
+        return "unknown"
+    host_lower = host.lower().rstrip("/")
+    for pattern, cloud in _CLOUD_PATTERNS:
+        if re.search(pattern, host_lower):
+            return cloud
+    return "unknown"
+
+
+# Human-friendly names
+CLOUD_DISPLAY_NAMES: dict[str, str] = {
+    "aws": "Amazon Web Services (AWS)",
+    "azure": "Microsoft Azure",
+    "gcp": "Google Cloud Platform (GCP)",
+    "unknown": "Unknown Cloud",
+}
 
 
 @dataclass
@@ -18,6 +56,7 @@ class WalEConfig:
     workspace_host: str = ""
     token: str = ""
     output_dir: str = "./assessment-results"
+    cloud_provider: str = ""  # auto-detected: "aws", "azure", "gcp", "unknown"
     formats: list[Literal["md", "csv", "html", "pptx", "audit"]] = field(
         default_factory=lambda: ["md", "audit"]
     )
@@ -26,6 +65,9 @@ class WalEConfig:
         """Load profile from ~/.databrickscfg if host/token not set."""
         if not self.workspace_host or not self.token:
             self._load_from_cli_config()
+        # Auto-detect cloud provider from workspace host
+        if not self.cloud_provider:
+            self.cloud_provider = detect_cloud_provider(self.workspace_host)
 
     def _get_config_path(self) -> Path:
         """Get path to Databricks CLI config file."""

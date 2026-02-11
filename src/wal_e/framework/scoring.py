@@ -26,6 +26,11 @@ def _get(data: dict, *keys: str, default: Any = None) -> Any:
     return current
 
 
+def _cloud(data: dict) -> str:
+    """Return detected cloud provider: 'aws', 'azure', 'gcp', or 'unknown'."""
+    return data.get("_cloud_provider", "unknown")
+
+
 def _flatten_collected(data: dict) -> dict:
     """Flatten collected_data from collectors into a single dict for easy lookup."""
     result: dict[str, Any] = {}
@@ -582,8 +587,15 @@ def _score_sec_001(data: dict) -> tuple[int, str]:
 
 
 def _score_sec_002(data: dict) -> tuple[int, str]:
-    """Data protection transit/rest."""
-    return 1, "Encryption not verifiable from API. Ensure SSE and TLS."
+    """Data protection transit/rest - cloud-aware."""
+    cloud = _cloud(data)
+    if cloud == "aws":
+        return 1, "Verify AWS SSE-S3/SSE-KMS encryption at rest and TLS in transit. Consider customer-managed keys (CMK)."
+    if cloud == "azure":
+        return 1, "Verify Azure SSE with Microsoft-managed or customer-managed keys (CMK). TLS enforced by default."
+    if cloud == "gcp":
+        return 1, "Verify GCP CMEK encryption at rest and TLS in transit. Consider customer-managed encryption keys."
+    return 1, "Encryption not verifiable from API. Ensure encryption at rest and TLS in transit."
 
 
 def _score_sec_003(data: dict) -> tuple[int, str]:
@@ -637,17 +649,23 @@ def _score_sec_007(data: dict) -> tuple[int, str]:
 
 
 def _score_sec_008(data: dict) -> tuple[int, str]:
-    """SSO configuration (Admin Cheat Sheet)."""
+    """SSO configuration (Admin Cheat Sheet) - cloud-aware."""
+    cloud = _cloud(data)
     sec = _get(data, "SecurityCollector") or {}
     scim_groups = sec.get("scim_groups", []) or []
-    # If SCIM groups with externalId exist, SSO is likely configured
     idp_synced = sum(1 for g in scim_groups if isinstance(g, dict) and g.get("externalId"))
+    if cloud == "azure":
+        idp_name = "Microsoft Entra ID (AAD)"
+    elif cloud == "gcp":
+        idp_name = "Google Cloud Identity"
+    else:
+        idp_name = "your identity provider (Okta, AAD, etc.)"
     if idp_synced > 0:
-        return 2, f"IdP-synced groups detected ({idp_synced}), indicating SSO is configured."
+        return 2, f"IdP-synced groups detected ({idp_synced}), indicating SSO is configured via {idp_name}."
     scim_count = sec.get("scim_group_count", 0) or 0
     if scim_count > 0:
-        return 1, "Groups exist but no IdP sync detected. Configure SSO via your identity provider."
-    return 1, "SSO configuration not verifiable from workspace API. Set up SSO via identity provider."
+        return 1, f"Groups exist but no IdP sync detected. Configure SSO via {idp_name} ({cloud.upper()})."
+    return 1, f"SSO not verifiable from workspace API. Set up SSO via {idp_name} ({cloud.upper()})."
 
 
 def _score_sec_009(data: dict) -> tuple[int, str]:
@@ -674,14 +692,22 @@ def _score_sec_010(data: dict) -> tuple[int, str]:
 
 
 def _score_sec_011(data: dict) -> tuple[int, str]:
-    """Customer-managed VPC (Admin Cheat Sheet)."""
-    # VPC/Private Link not verifiable from workspace API
+    """Customer-managed VPC / VNET / VPC-SC (Admin Cheat Sheet) - cloud-aware."""
+    cloud = _cloud(data)
     sec = _get(data, "SecurityCollector") or {}
     sec_settings = sec.get("security_settings", {}) or {}
     ipl_on = str(sec_settings.get("enableIpAccessLists", "")).lower() == "true"
+    if cloud == "aws":
+        net = "customer-managed VPC with AWS PrivateLink"
+    elif cloud == "azure":
+        net = "VNET injection with Azure Private Link"
+    elif cloud == "gcp":
+        net = "customer-managed VPC with Private Service Connect"
+    else:
+        net = "customer-managed VPC with Private Link"
     if ipl_on:
-        return 1, "IP access lists enabled. Verify customer-managed VPC and Private Link for network-level security."
-    return 0, "No network-level controls detected. Configure customer-managed VPC with Private Link."
+        return 1, f"IP access lists enabled ({cloud.upper()}). Verify {net} for network-level security."
+    return 0, f"No network-level controls detected ({cloud.upper()}). Configure {net}."
 
 
 def _score_sec_012(data: dict) -> tuple[int, str]:
@@ -1063,20 +1089,37 @@ def _score_perf_023(data: dict) -> tuple[int, str]:
 
 
 def _score_perf_024(data: dict) -> tuple[int, str]:
-    """Graviton instance types (Compute Cheat Sheet)."""
+    """Cost-efficient instance types (Compute Cheat Sheet) - cloud-aware."""
+    cloud = _cloud(data)
     compute = _get(data, "ComputeCollector") or {}
     clusters = compute.get("clusters", []) or []
     if not clusters:
-        return 1, "No clusters to evaluate. Use Graviton instance types for best price-to-performance ratio."
-    # Graviton instances on AWS contain patterns like "m6g", "m7g", "c6g", "r6g", etc.
-    graviton_patterns = ("g.", "gd.", "gn.")
-    graviton_count = sum(
-        1 for c in clusters if isinstance(c, dict) and c.get("node_type_id") and
-        any(p in str(c.get("node_type_id", "")).lower() for p in graviton_patterns)
-    )
-    if graviton_count > 0:
-        return 2, f"{graviton_count}/{len(clusters)} cluster(s) using Graviton instances for optimal price-performance."
-    return 0, f"No Graviton instances detected across {len(clusters)} clusters. Use Graviton for best price-to-performance."
+        if cloud == "aws":
+            return 1, "No clusters. Use AWS Graviton instance types for best price-to-performance."
+        if cloud == "azure":
+            return 1, "No clusters. Use Azure Dv5/Ev5 (Arm-based) instances for best price-to-performance."
+        if cloud == "gcp":
+            return 1, "No clusters. Use GCP T2D/N2D instances for best price-to-performance."
+        return 1, "No clusters to evaluate. Use cost-efficient instance types."
+    node_ids = [str(c.get("node_type_id", "")).lower() for c in clusters if isinstance(c, dict) and c.get("node_type_id")]
+    if cloud == "aws":
+        # Graviton: m6g, m7g, c6g, c7g, r6g, r7g, etc.
+        efficient = sum(1 for n in node_ids if any(p in n for p in ("6g.", "7g.", "6gd.", "7gd.", "6gn.", "7gn.")))
+        label = "Graviton"
+    elif cloud == "azure":
+        # Azure efficient: Dv5, Ev5, Dpv5, Epv5 (Arm-based Cobalt/Ampere)
+        efficient = sum(1 for n in node_ids if any(p in n for p in ("dpsv5", "dpdsv5", "epsv5", "epdsv5", "dpsv6", "standard_d")))
+        label = "cost-efficient (Dv5/Ev5/Cobalt)"
+    elif cloud == "gcp":
+        # GCP efficient: T2D, N2D, T2A (Arm)
+        efficient = sum(1 for n in node_ids if any(p in n for p in ("t2d-", "n2d-", "t2a-")))
+        label = "cost-efficient (T2D/N2D)"
+    else:
+        efficient = 0
+        label = "cost-efficient"
+    if efficient > 0:
+        return 2, f"{efficient}/{len(clusters)} cluster(s) using {label} instances ({cloud.upper()})."
+    return 0, f"No {label} instances across {len(clusters)} clusters ({cloud.upper()}). Adopt for best price-to-performance."
 
 
 def _score_perf_025(data: dict) -> tuple[int, str]:
@@ -1271,31 +1314,53 @@ def _score_cost_017(data: dict) -> tuple[int, str]:
 
 
 def _score_cost_018(data: dict) -> tuple[int, str]:
-    """On-demand vs reserved."""
-    return 1, "Reserved/Spot usage not verifiable from API. Evaluate instance savings."
+    """On-demand vs reserved - cloud-aware."""
+    cloud = _cloud(data)
+    if cloud == "aws":
+        return 1, "Evaluate AWS Reserved Instances or Savings Plans for predictable workloads."
+    if cloud == "azure":
+        return 1, "Evaluate Azure Reserved VM Instances for predictable workloads."
+    if cloud == "gcp":
+        return 1, "Evaluate GCP Committed Use Discounts (CUDs) for predictable workloads."
+    return 1, "Reserved/savings usage not verifiable from API. Evaluate cloud-specific commitment discounts."
 
 
 def _score_cost_019(data: dict) -> tuple[int, str]:
-    """Spot instance strategy (Compute Cheat Sheet)."""
+    """Spot/preemptible instance strategy (Compute Cheat Sheet) - cloud-aware."""
+    cloud = _cloud(data)
     compute = _get(data, "ComputeCollector") or {}
     clusters = compute.get("clusters", []) or []
+    if cloud == "aws":
+        label = "Spot instances"
+    elif cloud == "azure":
+        label = "Azure Spot VMs"
+    elif cloud == "gcp":
+        label = "Preemptible VMs"
+    else:
+        label = "spot/preemptible instances"
     if not clusters:
-        return 1, "No clusters to evaluate. Use spot instances for fault-tolerant batch workloads."
+        return 1, f"No clusters. Use {label} for fault-tolerant batch workloads ({cloud.upper()})."
     spot_count = sum(
         1 for c in clusters if isinstance(c, dict) and (
-            str(c.get("availability", "")).upper() in ("SPOT", "SPOT_WITH_FALLBACK") or
+            str(c.get("availability", "")).upper() in ("SPOT", "SPOT_WITH_FALLBACK", "PREEMPTIBLE") or
             (c.get("first_on_demand") is not None and c.get("first_on_demand") == 0)
         )
     )
     if spot_count > 0:
-        return 2, f"{spot_count}/{len(clusters)} cluster(s) use spot instances for cost savings."
-    return 1, f"No spot instance usage detected across {len(clusters)} clusters. Evaluate spot for batch workloads."
+        return 2, f"{spot_count}/{len(clusters)} cluster(s) use {label} for cost savings ({cloud.upper()})."
+    return 1, f"No {label} usage across {len(clusters)} clusters ({cloud.upper()}). Evaluate for batch workloads."
 
 
 def _score_cost_020(data: dict) -> tuple[int, str]:
-    """Budget alerts (Admin Cheat Sheet)."""
-    # Budget alerts are account-level, not verifiable from workspace API
-    return 1, "Budget alerts are account-level and not verifiable from workspace API. Configure budget alerts in Account Console."
+    """Budget alerts (Admin Cheat Sheet) - cloud-aware."""
+    cloud = _cloud(data)
+    if cloud == "aws":
+        return 1, "Configure Databricks budget alerts in Account Console. Also set up AWS Cost Explorer and billing alarms."
+    if cloud == "azure":
+        return 1, "Configure Databricks budget alerts in Account Console. Also use Azure Cost Management budgets."
+    if cloud == "gcp":
+        return 1, "Configure Databricks budget alerts in Account Console. Also use GCP Budget & Alerts."
+    return 1, "Budget alerts are account-level and not verifiable from workspace API. Configure in Account Console."
 
 
 # ---------------------------------------------------------------------------
@@ -1462,6 +1527,7 @@ class ScoredAssessment:
     maturity_level: str = "Beginning"
     assessment_date: str = ""
     workspace_host: str = ""
+    cloud_provider: str = ""
 
 
 def _maturity_from_score(avg: float) -> str:
@@ -1540,6 +1606,7 @@ class ScoringEngine:
             maturity_level=maturity,
             assessment_date=datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
             workspace_host=workspace_host,
+            cloud_provider=collected_data.get("_cloud_provider", "unknown"),
         )
 
     def _prepare_data(self, data: dict) -> dict:

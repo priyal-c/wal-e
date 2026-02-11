@@ -154,7 +154,13 @@ def _run_assess(args: argparse.Namespace) -> int:
     else:
         _print_banner(args.quiet)
         if not args.quiet:
-            print(f"{C.BLUE}Profile:{C.RESET} {args.profile}  {C.BLUE}Output:{C.RESET} {args.output}\n")
+            from wal_e.core.config import CLOUD_DISPLAY_NAMES
+            cloud_label = CLOUD_DISPLAY_NAMES.get(config.cloud_provider, config.cloud_provider)
+            cloud_color = {
+                "aws": C.YELLOW, "azure": C.BLUE, "gcp": C.CYAN,
+            }.get(config.cloud_provider, C.DIM)
+            print(f"{C.BLUE}Profile:{C.RESET} {args.profile}  {C.BLUE}Output:{C.RESET} {args.output}")
+            print(f"{C.BLUE}Cloud:{C.RESET}   {cloud_color}{cloud_label}{C.RESET}\n")
 
         import threading
         t = threading.Thread(target=_progress_spinner, args=(args.quiet, stop_spinner))

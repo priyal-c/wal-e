@@ -70,4 +70,7 @@ class AssessmentEngine:
 
         result.total_duration_seconds = time.perf_counter() - start_total
 
+        # Inject cloud provider metadata so scoring functions can branch by cloud
+        result.collected_data["_cloud_provider"] = self.config.cloud_provider
+
         return result
