@@ -30,6 +30,7 @@ class ScoredAssessment(TypedDict, total=False):
     maturity_level: str
     workspace_host: str
     assessment_date: str
+    cloud_provider: str
 
 
 class AuditEntry(TypedDict):
@@ -109,6 +110,21 @@ class BaseReporter:
 
     def _get_assessment_date(self, scored_assessment: ScoredAssessment) -> str:
         return scored_assessment.get("assessment_date") or "Unknown"
+
+    def _get_cloud_provider(self, scored_assessment: ScoredAssessment) -> str:
+        return scored_assessment.get("cloud_provider") or "unknown"
+
+    def _cloud_display_name(self, cloud: str) -> str:
+        """Return human-friendly cloud name."""
+        return {
+            "aws": "Amazon Web Services (AWS)",
+            "azure": "Microsoft Azure",
+            "gcp": "Google Cloud Platform (GCP)",
+        }.get(cloud, "Unknown Cloud")
+
+    def _cloud_short_name(self, cloud: str) -> str:
+        """Return short cloud name for tables."""
+        return {"aws": "AWS", "azure": "Azure", "gcp": "GCP"}.get(cloud, "Unknown")
 
     def _format_score(self, score: Optional[Union[int, float]]) -> str:
         """Format score from 0-2 scale as a percentage (0-100%)."""

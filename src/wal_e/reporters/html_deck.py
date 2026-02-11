@@ -35,6 +35,9 @@ class HTMLDeckReporter(BaseReporter):
         maturity_level = self._get_maturity_level(scored_assessment)
         workspace_host = self._get_workspace_host(scored_assessment)
         assessment_date = self._get_assessment_date(scored_assessment)
+        cloud = self._get_cloud_provider(scored_assessment)
+        cloud_display = self._cloud_display_name(cloud)
+        cloud_short = self._cloud_short_name(cloud)
 
         # Top 10 findings (lowest scores first)
         sorted_findings = sorted(
@@ -51,6 +54,8 @@ class HTMLDeckReporter(BaseReporter):
             best_practice_scores=best_practice_scores,
             sorted_findings=sorted_findings,
             collected_data=collected_data,
+            cloud_display=cloud_display,
+            cloud_short=cloud_short,
         )
 
         output_path.write_text(html, encoding="utf-8")
@@ -66,6 +71,8 @@ class HTMLDeckReporter(BaseReporter):
         best_practice_scores: List[BestPracticeScore],
         sorted_findings: List[BestPracticeScore],
         collected_data: Dict[str, Any],
+        cloud_display: str = "Unknown Cloud",
+        cloud_short: str = "Unknown",
     ) -> str:
         css = self._get_css()
         slides: List[str] = []
@@ -78,6 +85,7 @@ class HTMLDeckReporter(BaseReporter):
   <h1>Well-Architected Lakehouse</h1>
   <h2>Assessment Readout</h2>
   <p class="meta">{workspace_host}</p>
+  <p class="meta"><span class="badge badge-blue">{cloud_short}</span> {cloud_display}</p>
   <p class="meta">{assessment_date}</p>
 </section>''')
 
@@ -148,6 +156,8 @@ class HTMLDeckReporter(BaseReporter):
 
         # Slide 5: Workspace Metrics
         metrics = self._extract_workspace_metrics(collected_data)
+        # Prepend cloud as first metric card
+        metrics = {"Cloud": cloud_short, **metrics}
         metric_cards = "".join(
             f'<div class="metric-card"><span class="metric-value">{v}</span><span class="metric-label">{k}</span></div>'
             for k, v in metrics.items()
@@ -343,6 +353,7 @@ body {
 .badge-red { background: var(--db-red); color: white; }
 .badge-orange { background: var(--db-orange); color: black; }
 .badge-green { background: var(--db-green); color: black; }
+.badge-blue { background: #136cb9; color: white; }
 .pillar-table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
 .pillar-table th, .pillar-table td { padding: 0.5rem; text-align: left; border-bottom: 1px solid #333; }
 .pillar-table th { color: var(--db-muted); font-weight: 500; }

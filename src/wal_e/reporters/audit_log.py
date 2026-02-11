@@ -82,9 +82,11 @@ class AuditLogReporter(BaseReporter):
         best_practice_scores = self._get_best_practice_scores(scored_assessment)
         workspace_host = self._get_workspace_host(scored_assessment)
         assessment_date = self._get_assessment_date(scored_assessment)
+        cloud = self._get_cloud_provider(scored_assessment)
+        cloud_display = self._cloud_display_name(cloud)
 
         sections: List[str] = [
-            self._render_header(workspace_host, assessment_date),
+            self._render_header(workspace_host, assessment_date, cloud_display),
             self._render_summary(audit_entries),
             self._render_audit_entries(audit_entries),
             self._render_evidence_mapping(best_practice_scores, audit_entries),
@@ -95,10 +97,11 @@ class AuditLogReporter(BaseReporter):
         output_path.write_text("\n\n".join(sections), encoding="utf-8")
         return output_path
 
-    def _render_header(self, workspace_host: str, assessment_date: str) -> str:
+    def _render_header(self, workspace_host: str, assessment_date: str, cloud_display: str = "Unknown Cloud") -> str:
         return f"""# WAL Assessment Audit Report
 
 **Workspace:** `{workspace_host}`  
+**Cloud Provider:** {cloud_display}  
 **Assessment Date:** {assessment_date}
 
 This document lists every API call and CLI command executed during the WAL-E assessment, including raw outputs (truncated where appropriate). It serves as an audit trail and evidence base for the assessment findings.

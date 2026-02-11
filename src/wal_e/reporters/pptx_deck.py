@@ -82,6 +82,9 @@ class PPTXDeckReporter(BaseReporter):
         mat = self._get_maturity_level(scored_assessment)
         host = self._get_workspace_host(scored_assessment)
         date = self._get_assessment_date(scored_assessment)
+        cloud = self._get_cloud_provider(scored_assessment)
+        cloud_display = self._cloud_display_name(cloud)
+        cloud_short = self._cloud_short_name(cloud)
 
         gov = collected_data.get("GovernanceCollector", {})
         comp = collected_data.get("ComputeCollector", {})
@@ -89,18 +92,18 @@ class PPTXDeckReporter(BaseReporter):
         sec = collected_data.get("SecurityCollector", {})
         ws = collected_data.get("WorkspaceCollector", {})
 
-        self._s1_title(prs, host, date, gov)
+        self._s1_title(prs, host, date, gov, cloud_display)
         self._s2_objective(prs)
         self._s3_maturity_radar(prs, ps, ov, mat)
         self._s4_pillar_scores(prs, ps)
-        self._s5_workspace(prs, gov, comp, ops, sec)
+        self._s5_workspace(prs, gov, comp, ops, sec, cloud_short)
         self._s6_findings(prs, bps)
         for pillar in PILLAR_ORDER:
             self._s_pillar(prs, pillar, ps, bps, collected_data)
         self._s_roadmap(prs, bps, sec, comp)
         self._s_next_steps(prs, sec, comp, gov)
         self._s_stats(prs, bps, ps)
-        self._s_thankyou(prs, host)
+        self._s_thankyou(prs, host, cloud_display)
 
         prs.save(str(out))
         return out
@@ -211,7 +214,7 @@ class PPTXDeckReporter(BaseReporter):
 
     # ====================== SLIDE 1: TITLE ======================
 
-    def _s1_title(self, prs, host, date, gov):
+    def _s1_title(self, prs, host, date, gov, cloud_display="Unknown Cloud"):
         s = prs.slides.add_slide(prs.slide_layouts[6]); self._bg(s)
         tx = s.shapes.add_textbox(Inches(0.8), Inches(1.5), Inches(11.5), Inches(1.5))
         p = tx.text_frame.paragraphs[0]
@@ -222,12 +225,13 @@ class PPTXDeckReporter(BaseReporter):
         meta = [
             ("Assessment Type", "Well-Architected Lakehouse Assessment"),
             ("Customer Workspace", host),
+            ("Cloud Provider", cloud_display),
             ("Metastore", gov.get("metastore_name", "N/A")),
             ("Assessment Date", date),
             ("Lead Assessor", "WAL-E Agent (Automated)"),
             ("Framework", "Databricks Well-Architected Framework"),
         ]
-        self._tbl(s, [[l, v] for l, v in meta], ["Field", "Details"], 0.8, 3.8, 10, cw=[3.0, 7.0])
+        self._tbl(s, [[l, v] for l, v in meta], ["Field", "Details"], 0.8, 3.6, 10, cw=[3.0, 7.0])
 
     # ====================== SLIDE 2: OBJECTIVE ======================
 
@@ -300,10 +304,12 @@ class PPTXDeckReporter(BaseReporter):
 
     # ====================== SLIDE 5: WORKSPACE AT A GLANCE ======================
 
-    def _s5_workspace(self, prs, gov, comp, ops, sec):
+    def _s5_workspace(self, prs, gov, comp, ops, sec, cloud_short="Unknown"):
         s = prs.slides.add_slide(prs.slide_layouts[6]); self._bg(s)
         self._title(s, "Workspace at a Glance")
-        self._txt(s, "Resource Inventory", 0.5, 1.2, sz=14, bold=True)
+        # Cloud badge
+        self._txt(s, f"Cloud Provider: {cloud_short}", 0.5, 1.0, sz=14, bold=True, color=DB_BLUE)
+        self._txt(s, "Resource Inventory", 0.5, 1.4, sz=14, bold=True)
 
         cc = gov.get("catalog_count", 0)
         el = gov.get("external_location_count", 0)
@@ -330,11 +336,11 @@ class PPTXDeckReporter(BaseReporter):
             ["Secret Scopes", str(sc_cnt), "OK" if sc_cnt > 0 else "WARNING - None"],
             ["Git Repos", str(rp), "OK - Active integration" if rp > 0 else "WARNING - None"],
         ]
-        self._tbl(s, inv, ["Resource", "Count", "Health"], 0.3, 1.6, 6.2, cw=[2.6, 1.0, 2.6], color_cols={2: "health"})
+        self._tbl(s, inv, ["Resource", "Count", "Health"], 0.3, 1.8, 6.2, cw=[2.6, 1.0, 2.6], color_cols={2: "health"})
 
         # Key Configuration (right column)
         ss = sec.get("security_settings", {}) or {}
-        self._txt(s, "Key Configuration", 7.0, 1.2, sz=14, bold=True)
+        self._txt(s, "Key Configuration", 7.0, 1.4, sz=14, bold=True)
         conf = []
         dbfs = ss.get("enableDbfsFileBrowser", "")
         conf.append(["DBFS File Browser", str(dbfs).upper() if dbfs else "N/A", "DISABLE" if str(dbfs).lower() == "true" else "MAINTAIN"])
@@ -559,14 +565,14 @@ class PPTXDeckReporter(BaseReporter):
 
     # ====================== SLIDE 17: THANK YOU ======================
 
-    def _s_thankyou(self, prs, host):
+    def _s_thankyou(self, prs, host, cloud_display="Unknown Cloud"):
         s = prs.slides.add_slide(prs.slide_layouts[6]); self._bg(s)
 
         tx = s.shapes.add_textbox(Inches(2), Inches(1.5), Inches(9.5), Inches(1))
         p = tx.text_frame.paragraphs[0]
         p.text = "Thank You"; p.font.size = Pt(54); p.font.bold = True; p.font.color.rgb = DB_RED; p.alignment = PP_ALIGN.CENTER
 
-        self._txt(s, f"Well-Architected Lakehouse Assessment \u2014 {host}", 2, 2.5, width=9.5, sz=14, color=DB_GRAY)
+        self._txt(s, f"Well-Architected Lakehouse Assessment \u2014 {host} ({cloud_display})", 2, 2.5, width=9.5, sz=14, color=DB_GRAY)
 
         self._txt(s, "Deliverables:", 0.8, 3.5, sz=14, bold=True)
         deliverables = [

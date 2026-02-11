@@ -36,11 +36,12 @@ class MarkdownReporter(BaseReporter):
         maturity_level = self._get_maturity_level(scored_assessment)
         workspace_host = self._get_workspace_host(scored_assessment)
         assessment_date = self._get_assessment_date(scored_assessment)
+        cloud = self._get_cloud_provider(scored_assessment)
 
         sections: List[str] = []
 
         # Title and Executive Summary
-        sections.append(self._render_title(workspace_host, assessment_date, collected_data))
+        sections.append(self._render_title(workspace_host, assessment_date, cloud, collected_data))
         sections.append(
             self._render_executive_summary(
                 overall_score, maturity_level, pillar_scores
@@ -71,11 +72,12 @@ class MarkdownReporter(BaseReporter):
         output_path.write_text("\n\n".join(sections), encoding="utf-8")
         return output_path
 
-    def _render_title(self, workspace_host: str, assessment_date: str, collected_data: Dict[str, Any]) -> str:
+    def _render_title(self, workspace_host: str, assessment_date: str, cloud: str, collected_data: Dict[str, Any]) -> str:
         # Extract workspace metadata
         gov = collected_data.get("GovernanceCollector", {})
         metastore_name = gov.get("metastore_name", "N/A")
         catalog_count = gov.get("catalog_count", "N/A")
+        cloud_display = self._cloud_display_name(cloud)
 
         return f"""# Well-Architected Lakehouse Assessment
 ## Final Readout
@@ -85,6 +87,7 @@ class MarkdownReporter(BaseReporter):
 | **Field** | **Details** |
 |---|---|
 | **Workspace** | {workspace_host} |
+| **Cloud Provider** | {cloud_display} |
 | **Metastore** | {metastore_name} |
 | **Assessment Date** | {assessment_date} |
 | **Catalogs** | {catalog_count} |

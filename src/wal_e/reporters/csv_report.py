@@ -31,6 +31,8 @@ class CSVReporter(BaseReporter):
     ) -> Path:
         output_path = self._ensure_output_dir(output_dir) / self.output_filename
         best_practice_scores = self._get_best_practice_scores(scored_assessment)
+        cloud = self._get_cloud_provider(scored_assessment)
+        cloud_short = self._cloud_short_name(cloud)
 
         rows: List[Dict[str, str]] = []
 
@@ -106,9 +108,13 @@ class CSVReporter(BaseReporter):
                     "Relevant (Y/N)",
                     "Score (0-2)",
                     "Finding/Notes",
+                    "Cloud",
                 ],
             )
             writer.writeheader()
-            writer.writerows(rows)
+            # Write cloud-tagged rows
+            for row in rows:
+                row["Cloud"] = cloud_short
+                writer.writerow(row)
 
         return output_path

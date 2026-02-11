@@ -117,6 +117,7 @@ def _scored_to_reporter_format(scored: Any) -> dict:
         "maturity_level": scored.maturity_level,
         "assessment_date": scored.assessment_date,
         "workspace_host": scored.workspace_host or "Unknown",
+        "cloud_provider": getattr(scored, "cloud_provider", "") or "unknown",
     }
 
 
@@ -428,6 +429,7 @@ def _run_report(args: argparse.Namespace) -> int:
         "maturity_level": scored_dict.get("maturity_level", "Not Assessed"),
         "assessment_date": scored_dict.get("assessment_date", ""),
         "workspace_host": scored_dict.get("workspace_host", "Unknown"),
+        "cloud_provider": scored_dict.get("cloud_provider", "unknown"),
     }
 
     formats = args.format or ["md", "csv", "html", "pptx", "audit"]
