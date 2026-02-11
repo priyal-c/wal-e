@@ -17,7 +17,7 @@ from .base import (
 try:
     from pptx import Presentation
     from pptx.util import Inches, Pt
-    from pptx.dml.color import RgbColor
+    from pptx.dml.color import RGBColor
 
     PPTX_AVAILABLE = True
 except ImportError:
@@ -26,12 +26,12 @@ except ImportError:
 
 
 # Databricks branding colors (RGB)
-DB_RED = RgbColor(0xE5, 0x47, 0x4C) if PPTX_AVAILABLE else None
-DB_DARK = RgbColor(0x1A, 0x1A, 0x1A) if PPTX_AVAILABLE else None
-DB_WHITE = RgbColor(0xFF, 0xFF, 0xFF) if PPTX_AVAILABLE else None
-DB_GRAY = RgbColor(0xA3, 0xA3, 0xA3) if PPTX_AVAILABLE else None
-DB_GREEN = RgbColor(0x22, 0xC5, 0x5E) if PPTX_AVAILABLE else None
-DB_ORANGE = RgbColor(0xF5, 0x9E, 0x0B) if PPTX_AVAILABLE else None
+DB_RED = RGBColor(0xE5, 0x47, 0x4C) if PPTX_AVAILABLE else None
+DB_DARK = RGBColor(0x1A, 0x1A, 0x1A) if PPTX_AVAILABLE else None
+DB_WHITE = RGBColor(0xFF, 0xFF, 0xFF) if PPTX_AVAILABLE else None
+DB_GRAY = RGBColor(0xA3, 0xA3, 0xA3) if PPTX_AVAILABLE else None
+DB_GREEN = RGBColor(0x22, 0xC5, 0x5E) if PPTX_AVAILABLE else None
+DB_ORANGE = RGBColor(0xF5, 0x9E, 0x0B) if PPTX_AVAILABLE else None
 
 
 class PPTXDeckReporter(BaseReporter):

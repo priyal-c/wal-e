@@ -8,13 +8,14 @@ version = "0.1.0"
 description = "Well-Architected Lakehouse Evaluator"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "python-pptx>=1.0.0",
+]
 
 [project.scripts]
 wal-e = "wal_e.cli:main"
 
 [project.optional-dependencies]
-pptx = ["python-pptx>=0.6.21"]
 mcp = ["fastmcp>=2.0.0"]
 
 [project.urls]
