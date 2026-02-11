@@ -170,35 +170,78 @@ Available MCP tools:
 
 ## Access Requirements
 
-WAL-E needs **read-only** access to the target workspace. Here's what to share with your customer:
+> **Full guide:** See [ACCESS_GUIDE.md](ACCESS_GUIDE.md) for the complete access reference including customer-facing instructions, troubleshooting, and security assurances.
 
-### Minimum Required Permissions
+WAL-E needs **read-only** access to the target workspace. It makes **21 HTTP GET API calls** and **zero write calls**. No data is read from tables -- only workspace metadata and configuration.
 
-| Permission | Why | API Used |
-|-----------|-----|----------|
-| Workspace read | Assess workspace organization | `workspace list` |
-| Cluster list | Evaluate compute configuration | `clusters list` |
-| SQL Warehouse list | Assess warehouse setup | `sql/warehouses` |
-| Unity Catalog read | Governance assessment | `unity-catalog/*` |
-| Cluster policy list | Evaluate standardization | `cluster-policies list` |
-| Job list | Assess operational maturity | `jobs list` |
-| Pipeline list | Evaluate DLT adoption | `pipelines list` |
-| Secret scope list | Security assessment | `secrets list-scopes` |
-| IP access list read | Network security review | `ip-access-lists` |
-| Workspace conf read | Security config review | `workspace-conf` |
-
-### Setup for Customer Session
+### Quick Setup (3 minutes)
 
 ```bash
-# Customer creates a read-only PAT token
-# Databricks Workspace > User Settings > Developer > Access Tokens
-# Set expiry to 1 day (assessment only)
+# 1. Customer creates a short-lived PAT token (as workspace admin)
+#    Workspace > Settings > Developer > Access tokens > Generate
+#    Lifetime: 1 day | Description: "WAL-E Assessment"
 
-# SA configures CLI profile
+# 2. SA configures the CLI profile
 databricks configure --profile customer-assessment \
   --host https://customer-workspace.cloud.databricks.com \
   --token
+
+# 3. Validate before running
+wal-e validate --profile customer-assessment
 ```
+
+### Permissions by Assessment Depth
+
+| Access Level | What You Get | Coverage |
+|-------------|-------------|:--------:|
+| Regular user | Own clusters, permitted catalogs, own jobs | ~40% |
+| **Workspace admin** | All clusters, warehouses, security config, all jobs | **~80%** |
+| **Workspace admin + Metastore admin** | Above + all catalogs, credentials, locations | **~95%** |
+| Above + System tables | Full above + billing, audit, query history | **100%** |
+
+**Recommended:** Workspace admin + Metastore admin for a meaningful assessment.
+
+### API Endpoints Called (All Read-Only)
+
+| Category | Endpoints | Count | Admin Required? |
+|----------|-----------|:-----:|:---------------:|
+| **Authentication** | `auth describe`, `current-user me` | 2 | No |
+| **Unity Catalog** | `metastore_summary`, `catalogs`, `external-locations`, `storage-credentials` | 4 | Metastore admin for full list |
+| **Compute** | `clusters/list`, `sql/warehouses`, `cluster-policies/list`, `instance-pools/list` | 4 | Admin for all clusters |
+| **Security** | `workspace-conf`, `ip-access-lists`, `token/list` | 3 | **Yes** (workspace admin) |
+| **Operations** | `jobs/list`, `pipelines`, `serving-endpoints`, `repos`, `global-init-scripts`, `groups/list`, `secrets/list-scopes` | 7 | Admin for complete lists |
+| **Workspace** | `workspace/list` (root only) | 1 | Admin for full listing |
+| **Total** | | **21** | |
+
+### What WAL-E Will NEVER Do
+
+- Read table data, file contents, or query results
+- Execute notebooks, jobs, or pipelines
+- Create, modify, or delete any resource
+- Start or stop any cluster or warehouse
+- Access secret values (only scope names)
+- Transmit data to any external service
+
+### Security for the Customer
+
+- All API calls use **HTTPS/TLS**
+- Assessment results are stored **locally on the SA's machine only**
+- A complete **audit trail** of every API call is provided as a deliverable
+- The PAT token can be **revoked immediately** after the assessment
+- Set token lifetime to **1 day** (assessment takes ~15 minutes)
+
+### Optional: System Tables for Deeper Analysis
+
+For cost, performance, and audit insights, customers can optionally grant SELECT on system tables:
+
+```sql
+GRANT SELECT ON SCHEMA system.billing TO `sa-user@databricks.com`;
+GRANT SELECT ON SCHEMA system.compute TO `sa-user@databricks.com`;
+GRANT SELECT ON SCHEMA system.query TO `sa-user@databricks.com`;
+GRANT SELECT ON SCHEMA system.access TO `sa-user@databricks.com`;
+```
+
+See [ACCESS_GUIDE.md](ACCESS_GUIDE.md) for the full list of system tables used and customer-facing copy-paste instructions.
 
 ---
 

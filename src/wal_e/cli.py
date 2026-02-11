@@ -265,40 +265,113 @@ def _run_validate(args: argparse.Namespace) -> int:
 def _print_access_guide() -> None:
     guide = f"""
 {C.BOLD}WAL-E Access Requirements Guide{C.RESET}
-{C.DIM}─────────────────────────────────────────────────────{C.RESET}
+{C.DIM}══════════════════════════════════════════════════════════════{C.RESET}
 
-To run a WAL-E assessment, the Databricks workspace must be accessible
-via the Databricks CLI with appropriate permissions.
+WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess a Databricks workspace.
+{C.GREEN}Zero writes. Zero data access. Zero resource modifications.{C.RESET}
 
-{C.BOLD}1. Install Databricks CLI{C.RESET}
-   pip install databricks-cli
+{C.BOLD}WHAT THE CUSTOMER NEEDS TO PROVIDE{C.RESET}
+{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
-{C.BOLD}2. Configure Authentication{C.RESET}
-   Run: databricks configure --token
+  {C.BOLD}1. Personal Access Token (PAT){C.RESET}
+     Created by a {C.YELLOW}workspace admin{C.RESET} (metastore admin recommended)
+     - Workspace > Settings > Developer > Access tokens > Generate
+     - Lifetime: {C.GREEN}1 day{C.RESET} (assessment takes ~15 minutes)
+     - Description: "WAL-E Assessment - [date]"
 
-   You will need:
-   - Workspace URL (e.g., https://adb-xxxxx.azuredatabricks.net)
-   - Personal Access Token (PAT) or OAuth credentials
+  {C.BOLD}2. Workspace URL{C.RESET}
+     e.g., https://adb-xxxxx.azuredatabricks.net
+          https://customer.cloud.databricks.com
 
-{C.BOLD}3. Required Permissions{C.RESET}
-   For a complete assessment, the token should have:
-   - Workspace read access
-   - Cluster list and configuration read
-   - Job and pipeline read
-   - Unity Catalog metastore/catalog read
-   - SQL warehouse list
-   - Repos read
-   - Group and user read (for governance)
+{C.BOLD}SA SETUP STEPS{C.RESET}
+{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
-   Admin or Account Admin access is recommended for full coverage.
+  {C.CYAN}${C.RESET} databricks configure --profile customer-assessment \\
+      --host https://WORKSPACE-URL --token
+  {C.DIM}# Paste the customer's PAT when prompted{C.RESET}
 
-{C.BOLD}4. Network Access{C.RESET}
-   Ensure your network allows outbound HTTPS to the Databricks workspace.
+  {C.CYAN}${C.RESET} wal-e validate --profile customer-assessment
+  {C.DIM}# Verify connectivity and permissions{C.RESET}
 
-{C.BOLD}5. Verify{C.RESET}
-   Run: wal-e validate --profile DEFAULT
+  {C.CYAN}${C.RESET} wal-e assess --profile customer-assessment --interactive
+  {C.DIM}# Run the assessment{C.RESET}
 
-{C.RESET}
+{C.BOLD}COVERAGE BY ACCESS LEVEL{C.RESET}
+{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
+
+  Regular user ................. ~40% of best practices scored
+  {C.YELLOW}Workspace admin{C.RESET} .............. ~80% of best practices scored
+  {C.GREEN}Workspace + Metastore admin{C.RESET} .. ~95% of best practices scored
+  Above + System tables ........ 100% of best practices scored
+
+{C.BOLD}API CALLS MADE (ALL READ-ONLY){C.RESET}
+{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
+
+  {C.BLUE}Authentication (2 calls){C.RESET}
+    GET  auth describe
+    GET  current-user me
+
+  {C.BLUE}Unity Catalog (4 calls){C.RESET}          {C.DIM}[metastore admin recommended]{C.RESET}
+    GET  /api/2.1/unity-catalog/metastore_summary
+    GET  /api/2.1/unity-catalog/catalogs
+    GET  /api/2.1/unity-catalog/external-locations
+    GET  /api/2.1/unity-catalog/storage-credentials
+
+  {C.BLUE}Compute (4 calls){C.RESET}               {C.DIM}[admin for all clusters]{C.RESET}
+    GET  /api/2.1/clusters/list
+    GET  /api/2.0/sql/warehouses
+    GET  /api/2.0/cluster-policies/list
+    GET  /api/2.0/instance-pools/list
+
+  {C.BLUE}Security (3 calls){C.RESET}              {C.DIM}[workspace admin REQUIRED]{C.RESET}
+    GET  /api/2.0/workspace-conf
+    GET  /api/2.0/ip-access-lists
+    GET  /api/2.0/token/list
+
+  {C.BLUE}Operations (7 calls){C.RESET}            {C.DIM}[admin for complete lists]{C.RESET}
+    GET  /api/2.1/jobs/list
+    GET  /api/2.0/pipelines
+    GET  /api/2.0/serving-endpoints
+    GET  /api/2.0/repos
+    GET  /api/2.0/global-init-scripts
+    GET  /api/2.0/groups/list
+    GET  /api/2.0/secrets/list-scopes
+
+  {C.BLUE}Workspace (1 call){C.RESET}
+    GET  /api/2.0/workspace/list (root only)
+
+{C.BOLD}SECURITY ASSURANCES FOR THE CUSTOMER{C.RESET}
+{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
+
+  {C.GREEN}+{C.RESET} All calls are HTTPS/TLS encrypted
+  {C.GREEN}+{C.RESET} Assessment results stored locally on SA machine only
+  {C.GREEN}+{C.RESET} Complete audit trail provided as a deliverable
+  {C.GREEN}+{C.RESET} Token can be revoked immediately after assessment
+
+  {C.RED}-{C.RESET} NEVER reads table data, file contents, or query results
+  {C.RED}-{C.RESET} NEVER executes notebooks, jobs, or pipelines
+  {C.RED}-{C.RESET} NEVER creates, modifies, or deletes any resource
+  {C.RED}-{C.RESET} NEVER accesses secret values (only scope names)
+  {C.RED}-{C.RESET} NEVER transmits data to external services
+
+{C.BOLD}OPTIONAL: SYSTEM TABLES (for deeper analysis){C.RESET}
+{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
+
+  Customer admin runs:
+    GRANT SELECT ON SCHEMA system.billing TO `sa-user`;
+    GRANT SELECT ON SCHEMA system.compute TO `sa-user`;
+    GRANT SELECT ON SCHEMA system.query   TO `sa-user`;
+    GRANT SELECT ON SCHEMA system.access  TO `sa-user`;
+
+{C.BOLD}AFTER THE ASSESSMENT{C.RESET}
+{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
+
+  1. Customer revokes PAT: Settings > Developer > Access tokens > Revoke
+  2. SA removes CLI profile: edit ~/.databrickscfg
+  3. SA delivers assessment reports to customer
+  4. SA deletes local assessment files
+
+{C.DIM}Full documentation: ACCESS_GUIDE.md in the WAL-E repo{C.RESET}
 """
     print(guide)
 
