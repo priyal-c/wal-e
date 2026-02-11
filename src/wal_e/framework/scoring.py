@@ -42,152 +42,136 @@ def _flatten_collected(data: dict) -> dict:
 
 def _score_gov_001(data: dict) -> tuple[int, str]:
     """Establish governance process."""
-    flat = _flatten_collected(data)
-    uc = _get(data, "GovernanceCollector", "unity_catalog") or flat.get("unity_catalog") or {}
-    catalogs = uc.get("catalogs", []) if isinstance(uc, dict) else []
-    if catalogs and len(catalogs) > 0:
-        return 2, "Unity Catalog adopted with multiple catalogs; governance process evident."
-    if uc or _get(data, "GovernanceCollector"):
-        return 1, "Some governance in place; consider formalizing governance process."
+    gov = _get(data, "GovernanceCollector") or {}
+    catalog_count = gov.get("catalog_count", 0) or 0
+    metastore = gov.get("metastore_name") or gov.get("metastore_summary")
+    if metastore and catalog_count > 0:
+        if catalog_count > 100:
+            return 1, f"Unity Catalog in use but {catalog_count} catalogs suggest ad-hoc governance. Formalize process."
+        return 2, f"Unity Catalog adopted with {catalog_count} catalogs; governance process evident."
+    if metastore:
+        return 1, "Metastore exists; define formal governance process."
     return 0, "No governance process detected. Adopt Unity Catalog and define governance."
 
 
 def _score_gov_002(data: dict) -> tuple[int, str]:
     """Manage metadata in one place."""
-    flat = _flatten_collected(data)
-    metastores = flat.get("metastores", [])
-    if isinstance(metastores, list) and len(metastores) == 1:
-        return 2, "Single metastore; metadata managed centrally."
-    if metastores and len(metastores) <= 2:
-        return 1, "Multiple metastores present; consider consolidating."
-    return 0, "No single metadata store detected. Use Unity Catalog metastore."
+    gov = _get(data, "GovernanceCollector") or {}
+    metastore = gov.get("metastore_name") or gov.get("metastore_summary")
+    if metastore:
+        return 2, f"Single metastore '{metastore}'; metadata managed centrally."
+    return 0, "No Unity Catalog metastore detected. Configure metastore for centralized metadata."
 
 
 def _score_gov_003(data: dict) -> tuple[int, str]:
     """Track lineage."""
-    flat = _flatten_collected(data)
-    lineage = flat.get("lineage_enabled", flat.get("lineage"))
-    if lineage is True:
-        return 2, "Lineage tracking enabled."
-    if lineage:
-        return 1, "Partial lineage; verify table/column lineage coverage."
-    return 0, "Lineage not detected. Enable Unity Catalog lineage."
+    gov = _get(data, "GovernanceCollector") or {}
+    # UC lineage is auto-enabled when metastore exists
+    if gov.get("metastore_name"):
+        return 1, "Unity Catalog lineage available but active tracking not verified. Monitor lineage usage."
+    return 0, "Lineage not available. Enable Unity Catalog lineage."
 
 
 def _score_gov_004(data: dict) -> tuple[int, str]:
     """Add descriptions."""
-    flat = _flatten_collected(data)
-    schemas_with_desc = flat.get("schemas_with_descriptions", 0)
-    tables_with_desc = flat.get("tables_with_descriptions", 0)
-    if isinstance(schemas_with_desc, (int, float)) and isinstance(tables_with_desc, (int, float)):
-        total = schemas_with_desc + tables_with_desc
-        if total > 10:
-            return 2, f"Good metadata coverage: {total} objects with descriptions."
-        if total > 0:
-            return 1, f"Some descriptions present ({total}); expand coverage."
-    return 0, "No descriptions detected. Add comments to schemas and tables."
+    gov = _get(data, "GovernanceCollector") or {}
+    catalog_count = gov.get("catalog_count", 0) or 0
+    # We can't verify descriptions via CLI, but catalogs with many items likely lack them
+    if catalog_count > 100:
+        return 0, f"{catalog_count} catalogs — likely many lack descriptions. Add comments to schemas and tables."
+    if catalog_count > 0:
+        return 1, "Catalogs present; verify descriptions are applied consistently."
+    return 0, "No catalogs. Create catalogs with descriptions."
 
 
 def _score_gov_005(data: dict) -> tuple[int, str]:
     """Allow discovery."""
-    flat = _flatten_collected(data)
-    catalog = flat.get("catalog") or flat.get("unity_catalog")
-    if catalog and _get(data, "GovernanceCollector", "search_enabled"):
-        return 2, "Discovery/search enabled for catalog."
-    if catalog or flat.get("catalogs"):
-        return 1, "Catalog present; verify search and discovery are configured."
-    return 0, "Data discovery not configured. Enable Unity Catalog and search."
+    gov = _get(data, "GovernanceCollector") or {}
+    catalog_count = gov.get("catalog_count", 0) or 0
+    if catalog_count > 100:
+        return 1, f"Unity Catalog available but {catalog_count} catalogs hinder discovery. Consolidate catalogs."
+    if catalog_count > 0:
+        return 2, "Unity Catalog enables data discovery for consumers."
+    return 0, "Data discovery not configured. Enable Unity Catalog."
 
 
 def _score_gov_006(data: dict) -> tuple[int, str]:
     """Govern AI assets."""
-    flat = _flatten_collected(data)
-    model_registry = flat.get("model_registry", flat.get("mlflow_registry"))
-    feature_store = flat.get("feature_store")
-    experiments = flat.get("experiments", [])
-    if model_registry and (feature_store or experiments):
-        return 2, "AI assets governed via Model Registry and Feature Store/experiments."
-    if model_registry or feature_store:
-        return 1, "Partial AI governance; extend to all ML assets."
-    return 0, "No ML governance detected. Register models in MLflow Model Registry."
+    ops = _get(data, "OperationsCollector") or {}
+    endpoints = ops.get("endpoint_count", 0) or 0
+    if endpoints > 0:
+        return 1, f"{endpoints} serving endpoints — AI assets partially governed. Extend to Model Registry."
+    return 0, "No ML serving endpoints. Register models in MLflow Model Registry."
 
 
 def _score_gov_007(data: dict) -> tuple[int, str]:
     """Centralize access control."""
-    flat = _flatten_collected(data)
-    metastores = flat.get("metastores", [])
-    if isinstance(metastores, list):
-        for m in metastores:
-            owner = (m.get("default_catalog_name") or m.get("owner") or "").lower()
-            if "account users" in owner or "account_users" in str(owner):
-                return 0, "Metastore owner 'account users' reduces centralized control; use service principal."
-            if m.get("privilege_model") == "UC_BASED" or m.get("unity_catalog"):
-                return 2, "Unity Catalog–based access control centralized."
-    if metastores:
+    gov = _get(data, "GovernanceCollector") or {}
+    ms = gov.get("metastore_summary") or {}
+    if isinstance(ms, dict):
+        owner = str(ms.get("owner", "")).lower()
+        if "account users" in owner or "account_users" in owner:
+            return 0, f"Metastore owner is '{ms.get('owner')}' — overly permissive. Use dedicated admin group."
+        if owner:
+            return 2, f"Unity Catalog access control centralized. Metastore owner: {ms.get('owner')}."
+    iso = gov.get("isolation_modes", [])
+    if isinstance(iso, list) and "OPEN" in iso:
+        return 1, "OPEN isolation mode detected on catalogs. Switch to ISOLATED for production."
+    elif isinstance(iso, dict) and iso.get("OPEN", 0) > 0:
+        return 1, f"{iso.get('OPEN', 0)} catalogs in OPEN isolation. Switch to ISOLATED for production."
+    if gov.get("metastore_name"):
         return 1, "Metastore present; verify UC-based isolation and central RBAC."
     return 0, "No centralized access control. Migrate to Unity Catalog."
 
 
 def _score_gov_008(data: dict) -> tuple[int, str]:
     """Configure audit logging."""
-    flat = _flatten_collected(data)
-    system_tables = flat.get("system_tables_accessible", flat.get("audit_logs"))
-    workspace_conf = flat.get("workspace_conf", {}) or _get(data, "SecurityCollector", "workspace_conf") or {}
-    if isinstance(workspace_conf, dict):
-        audit = workspace_conf.get("enableAuditLogDelivery") or workspace_conf.get("audit")
-    else:
-        audit = None
-    if system_tables is True or audit:
-        return 2, "Audit logging configured; system tables or log delivery enabled."
-    if _get(data, "GovernanceCollector") or _get(data, "SecurityCollector"):
-        return 1, "Partial audit; ensure system tables and log delivery are enabled."
+    sec = _get(data, "SecurityCollector") or {}
+    sec_settings = sec.get("security_settings", {})
+    gov = _get(data, "GovernanceCollector") or {}
+    # If we got any data from SecurityCollector, audit logging is at least partially configured
+    if sec_settings or sec.get("ip_access_list_count") is not None:
+        return 1, "Workspace configuration accessible; audit logging partially verified. Enable system tables for full audit."
+    if gov.get("metastore_name"):
+        return 1, "Metastore present; verify audit logging via system tables."
     return 0, "Audit logging not configured. Enable system tables and log delivery."
 
 
 def _score_gov_009(data: dict) -> tuple[int, str]:
     """Audit events."""
-    flat = _flatten_collected(data)
-    audit_events = flat.get("audit_events", flat.get("audit_log_events"))
-    if audit_events and (isinstance(audit_events, list) and len(audit_events) > 0 or audit_events is True):
-        return 2, "Audit events are being captured."
-    if _get(data, "GovernanceCollector", "audit"):
-        return 1, "Audit partially configured; verify event coverage."
+    sec = _get(data, "SecurityCollector") or {}
+    if sec.get("security_settings"):
+        return 1, "Workspace security settings accessible; implement systematic audit event monitoring and alerting."
     return 0, "No audit events detected. Configure audit log delivery."
 
 
 def _score_gov_010(data: dict) -> tuple[int, str]:
     """Define DQ standards."""
-    flat = _flatten_collected(data)
-    expectations = flat.get("expectations_count", flat.get("dq_rules", 0))
-    if isinstance(expectations, (int, float)) and expectations > 5:
-        return 2, f"DQ standards defined: {expectations} expectations/rules."
-    if expectations and expectations > 0:
-        return 1, f"Some DQ rules ({expectations}); expand standards."
-    return 0, "No DQ standards detected. Define expectations and rules."
+    ops = _get(data, "OperationsCollector") or {}
+    pipeline_count = ops.get("pipeline_count", 0) or 0
+    if pipeline_count > 0:
+        return 1, f"{pipeline_count} DLT pipelines present — verify DQ expectations are defined."
+    return 0, "No DQ standards detected. Define DLT expectations and data quality rules."
 
 
 def _score_gov_011(data: dict) -> tuple[int, str]:
     """Use DQ tools."""
-    flat = _flatten_collected(data)
-    expectations = flat.get("expectations", flat.get("dq_checks", []))
-    if isinstance(expectations, list) and len(expectations) > 3:
-        return 2, f"DQ tools in use: {len(expectations)} expectations."
-    if expectations and len(expectations) > 0:
-        return 1, "Some DQ checks; expand to critical tables."
-    return 0, "No DQ tools detected. Use Delta Live Tables expectations or similar."
+    ops = _get(data, "OperationsCollector") or {}
+    pipeline_count = ops.get("pipeline_count", 0) or 0
+    if pipeline_count > 5:
+        return 1, f"{pipeline_count} DLT pipelines — verify expectations are actively used."
+    if pipeline_count > 0:
+        return 1, "Some DLT pipelines; expand data quality checks."
+    return 0, "No DQ tools detected. Use Delta Live Tables expectations or Quality Monitors."
 
 
 def _score_gov_012(data: dict) -> tuple[int, str]:
     """Enforce standardized formats."""
-    flat = _flatten_collected(data)
-    delta_tables = flat.get("delta_tables", flat.get("tables_delta", 0))
-    total_tables = flat.get("total_tables", flat.get("tables_total", 1))
-    if isinstance(delta_tables, (int, float)) and isinstance(total_tables, (int, float)):
-        if total_tables > 0 and delta_tables / total_tables >= 0.9:
-            return 2, "Most tables use Delta Lake format."
-        if delta_tables > 0:
-            return 1, f"Partial Delta adoption ({delta_tables}/{total_tables}); standardize."
-    return 0, "Standardized formats not detected. Migrate to Delta Lake."
+    gov = _get(data, "GovernanceCollector") or {}
+    # If Unity Catalog is in use, Delta Lake is the default format
+    if gov.get("metastore_name") and (gov.get("catalog_count", 0) or 0) > 0:
+        return 1, "Unity Catalog + Delta Lake in use but cannot verify all tables use Delta format from API."
+    return 0, "Standardized formats not verified. Use Delta Lake as default format."
 
 
 # ---------------------------------------------------------------------------
@@ -197,150 +181,145 @@ def _score_gov_012(data: dict) -> tuple[int, str]:
 
 def _score_int_001(data: dict) -> tuple[int, str]:
     """Standard integration patterns."""
-    flat = _flatten_collected(data)
-    connectors = flat.get("connectors", [])
-    if connectors and len(connectors) >= 2:
-        return 2, "Multiple standard connectors in use."
-    if connectors:
-        return 1, "Some connectors; expand standard integration patterns."
+    ops = _get(data, "OperationsCollector") or {}
+    job_count = ops.get("job_count", 0) or 0
+    job_names = ops.get("job_names", [])
+    dab_jobs = [j for j in job_names if "[DAB]" in j or "[dev " in j] if job_names else []
+    if dab_jobs:
+        return 1, f"{len(dab_jobs)} DAB-based jobs detected; expand to standardize integration patterns."
+    if job_count > 0:
+        return 1, "Jobs present but no standard integration patterns detected."
     return 0, "No standard integration patterns. Use Fivetran, Airbyte, or native connectors."
 
 
 def _score_int_002(data: dict) -> tuple[int, str]:
     """Optimized connectors."""
-    flat = _flatten_collected(data)
-    native = flat.get("native_connectors", flat.get("optimized_connectors", []))
-    if native and len(native) > 0:
-        return 2, "Optimized/native connectors in use."
-    return 1, "Connector optimization not verified. Prefer native Delta connectors."
+    ops = _get(data, "OperationsCollector") or {}
+    pipeline_states = ops.get("pipeline_states", [])
+    lakeflow = [p for p in pipeline_states if "connect" in str(p.get("name", "")).lower() or "gateway" in str(p.get("name", "")).lower()] if pipeline_states else []
+    if lakeflow:
+        return 1, f"LakeFlow Connect/gateway pipelines detected ({len(lakeflow)}). Verify optimized connectors."
+    return 1, "Connector optimization not verified from API. Prefer native Delta connectors."
 
 
 def _score_int_003(data: dict) -> tuple[int, str]:
     """Certified partner tools."""
-    flat = _flatten_collected(data)
-    partners = flat.get("partner_integrations", [])
-    if partners and len(partners) >= 1:
-        return 2, "Certified partner tools integrated."
-    return 1, "Partner tool certification not verified."
+    sec = _get(data, "SecurityCollector") or {}
+    ipl = sec.get("ip_access_list_count", 0) or 0
+    if ipl > 0:
+        return 1, "IP access lists suggest external tool integration (e.g. Power BI). Verify certified partners."
+    return 1, "Partner tool certification not verified from API."
 
 
 def _score_int_004(data: dict) -> tuple[int, str]:
     """Reduce pipeline complexity."""
-    flat = _flatten_collected(data)
-    pipelines = flat.get("pipelines", flat.get("dlt_pipelines", []))
-    jobs = flat.get("jobs", [])
-    if isinstance(pipelines, list):
-        dlt_count = len([p for p in pipelines if p.get("workflow_type") == "DLT" or "delta_live" in str(p).lower()])
-        if dlt_count > 0 and len(pipelines) <= 20:
-            return 2, "DLT pipelines reduce complexity."
-        if dlt_count > 0:
-            return 1, "DLT in use; consider consolidating pipelines."
+    ops = _get(data, "OperationsCollector") or {}
+    pipeline_count = ops.get("pipeline_count", 0) or 0
+    pipeline_states = ops.get("pipeline_states", [])
+    failed = sum(1 for p in (pipeline_states or []) if p.get("state") == "FAILED")
+    if pipeline_count > 0:
+        if failed > 0:
+            return 1, f"DLT pipelines present ({pipeline_count}) but {failed} in FAILED state."
+        return 2, f"{pipeline_count} DLT pipelines reduce complexity."
     return 0, "Pipeline complexity not reduced. Adopt Delta Live Tables."
 
 
 def _score_int_005(data: dict) -> tuple[int, str]:
     """Use IaC."""
-    flat = _flatten_collected(data)
-    iac = flat.get("iac_used", flat.get("terraform"))
-    if iac is True:
-        return 2, "Infrastructure as Code in use."
+    ops = _get(data, "OperationsCollector") or {}
+    job_names = ops.get("job_names", [])
+    dab = [j for j in (job_names or []) if "[DAB]" in j or "dabs" in j.lower()]
+    if dab:
+        return 1, f"{len(dab)} DAB-deployed jobs — partial IaC. Expand to Terraform/universal IaC."
     return 1, "IaC usage not detected from API. Document Terraform/CI usage."
 
 
 def _score_int_006(data: dict) -> tuple[int, str]:
     """Open data formats."""
-    flat = _flatten_collected(data)
-    delta = flat.get("delta_tables", 0)
-    if isinstance(delta, (int, float)) and delta > 0:
-        return 2, "Delta Lake (open format) in use."
+    gov = _get(data, "GovernanceCollector") or {}
+    if gov.get("metastore_name") and (gov.get("catalog_count", 0) or 0) > 0:
+        return 2, "Delta Lake (open format) used via Unity Catalog."
     return 0, "Open data formats not detected. Use Delta Lake."
 
 
 def _score_int_007(data: dict) -> tuple[int, str]:
     """Secure sharing."""
-    flat = _flatten_collected(data)
-    sharing = flat.get("delta_sharing", flat.get("shares", []))
-    if sharing and (isinstance(sharing, list) and len(sharing) > 0 or sharing is True):
-        return 2, "Delta Sharing configured for secure sharing."
+    gov = _get(data, "GovernanceCollector") or {}
+    ms = gov.get("metastore_summary", {})
+    if isinstance(ms, dict):
+        sharing = ms.get("delta_sharing_scope")
+        if sharing and "EXTERNAL" in str(sharing):
+            return 2, f"Delta Sharing configured ({sharing}) for secure sharing."
+        if sharing:
+            return 1, f"Delta Sharing scope: {sharing}. Consider enabling external sharing."
     return 1, "Secure sharing not verified. Configure Delta Sharing for cross-org."
 
 
 def _score_int_008(data: dict) -> tuple[int, str]:
     """Open ML standards."""
-    flat = _flatten_collected(data)
-    mlflow = flat.get("mlflow", flat.get("model_registry"))
-    if mlflow:
-        return 2, "MLflow (open ML standard) in use."
+    ops = _get(data, "OperationsCollector") or {}
+    endpoints = ops.get("endpoint_count", 0) or 0
+    if endpoints > 0:
+        return 2, f"MLflow/model serving in use ({endpoints} endpoints)."
     return 0, "Open ML standards not detected. Use MLflow."
 
 
 def _score_int_009(data: dict) -> tuple[int, str]:
     """Self-service."""
-    flat = _flatten_collected(data)
-    warehouses = flat.get("sql_warehouses", flat.get("warehouses", []))
-    if isinstance(warehouses, list) and len(warehouses) > 0:
-        return 2, "SQL Warehouses available for self-service analytics."
-    return 1, "Self-service SQL not fully configured. Provision SQL Warehouses."
+    compute = _get(data, "ComputeCollector") or {}
+    wh_count = compute.get("warehouse_count", 0) or 0
+    if wh_count > 0:
+        return 2, f"{wh_count} SQL Warehouses available for self-service analytics."
+    return 1, "Self-service SQL not configured. Provision SQL Warehouses."
 
 
 def _score_int_010(data: dict) -> tuple[int, str]:
     """Serverless compute (Interoperability)."""
-    flat = _flatten_collected(data)
-    whs = flat.get("sql_warehouses", flat.get("warehouses", []))
-    if isinstance(whs, list):
-        serverless = [w for w in whs if w.get("warehouse_type") == "PRO" or w.get("enable_serverless_compute")]
-        total = len(whs)
+    compute = _get(data, "ComputeCollector") or {}
+    wh_configs = compute.get("warehouse_configs", [])
+    if wh_configs:
+        # Check for PRO/serverless warehouses based on collected data
+        total = len(wh_configs)
         if total > 0:
-            pct = len(serverless) / total * 100
-            if pct >= 80:
-                return 2, f"{pct:.0f}% of SQL warehouses are serverless."
-            if pct > 0:
-                return 1, f"Partial serverless ({pct:.0f}%); increase adoption."
-    return 0, "No serverless SQL warehouses. Use Pro/Serverless warehouses."
+            return 1, f"{total} SQL warehouses configured. Verify serverless enablement."
+    return 0, "No SQL warehouses detected. Use Pro/Serverless warehouses."
 
 
 def _score_int_011(data: dict) -> tuple[int, str]:
     """Predefined compute templates."""
-    flat = _flatten_collected(data)
-    policies = flat.get("cluster_policies", flat.get("policies", []))
-    if isinstance(policies, list) and len(policies) > 0:
-        return 2, "Cluster policies (compute templates) defined."
+    compute = _get(data, "ComputeCollector") or {}
+    policy_count = compute.get("policy_count", 0) or 0
+    if policy_count > 20:
+        return 1, f"{policy_count} cluster policies — too many to be standardized templates. Consolidate."
+    if policy_count > 0:
+        return 2, f"{policy_count} cluster policies defined as compute templates."
     return 0, "No cluster policies. Define compute templates via policies."
 
 
 def _score_int_012(data: dict) -> tuple[int, str]:
     """AI productivity."""
-    flat = _flatten_collected(data)
-    assistant = flat.get("assistant_enabled", flat.get("ai_assistant"))
-    if assistant is True:
-        return 2, "AI assistant/productivity tools enabled."
-    return 1, "AI productivity not verified from API."
+    return 1, "AI productivity not verifiable from API. Verify assistant enablement."
 
 
 def _score_int_013(data: dict) -> tuple[int, str]:
     """Reusable data products."""
-    flat = _flatten_collected(data)
-    shares = flat.get("shares", flat.get("data_products", []))
-    if shares and (isinstance(shares, list) and len(shares) > 0):
-        return 2, "Reusable data products (shares) defined."
+    gov = _get(data, "GovernanceCollector") or {}
+    ms = gov.get("metastore_summary", {})
+    if isinstance(ms, dict) and ms.get("delta_sharing_scope"):
+        return 1, "Delta Sharing configured. Define reusable data products."
     return 1, "Reusable data products not verified. Define Delta Sharing."
 
 
 def _score_int_014(data: dict) -> tuple[int, str]:
     """Semantic consistency."""
-    flat = _flatten_collected(data)
-    semantic = flat.get("semantic_layer", flat.get("semantic_models"))
-    if semantic:
-        return 2, "Semantic layer/models for consistency."
-    return 1, "Semantic consistency not verified. Use Databricks SQL semantic layer."
+    return 1, "Semantic consistency not verifiable from API. Use Databricks SQL semantic layer."
 
 
 def _score_int_015(data: dict) -> tuple[int, str]:
     """UC for discovery."""
-    flat = _flatten_collected(data)
-    uc = flat.get("unity_catalog", flat.get("metastores"))
-    if uc and (isinstance(uc, dict) or (isinstance(uc, list) and len(uc) > 0)):
-        return 2, "Unity Catalog used for discovery."
+    gov = _get(data, "GovernanceCollector") or {}
+    if gov.get("metastore_name"):
+        return 2, f"Unity Catalog '{gov['metastore_name']}' enables data discovery."
     return 0, "Unity Catalog not detected for discovery."
 
 
@@ -356,53 +335,53 @@ def _score_ops_001(data: dict) -> tuple[int, str]:
 
 def _score_ops_002(data: dict) -> tuple[int, str]:
     """Enterprise SCM."""
-    flat = _flatten_collected(data)
-    repos = flat.get("repos", flat.get("git_repos", []))
-    if repos and len(repos) > 0:
-        return 2, "Repos/SCM configured."
+    ops = _get(data, "OperationsCollector") or {}
+    repo_count = ops.get("repo_count", 0) or 0
+    if repo_count > 0:
+        return 2, f"Repos/SCM configured ({repo_count} repos)."
     return 1, "Enterprise SCM not detected. Use Repos for source control."
 
 
 def _score_ops_003(data: dict) -> tuple[int, str]:
     """Standardize CI/CD."""
-    flat = _flatten_collected(data)
-    jobs = flat.get("jobs", [])
-    if isinstance(jobs, list) and len(jobs) > 0:
-        git_jobs = [j for j in jobs if j.get("git_source") or j.get("task", {}).get("git_source")]
-        if git_jobs and len(git_jobs) / max(len(jobs), 1) >= 0.5:
-            return 2, "Jobs use Git-based CI/CD."
-        return 1, "Some jobs present; standardize Git-based CI/CD."
+    ops = _get(data, "OperationsCollector") or {}
+    job_count = ops.get("job_count", 0) or 0
+    if job_count > 0:
+        return 1, "Job count available but Git-based CI/CD not verifiable from API. Use Repos and Git-backed job tasks."
     return 0, "No jobs; adopt CI/CD for deployments."
 
 
 def _score_ops_004(data: dict) -> tuple[int, str]:
     """MLOps processes."""
-    flat = _flatten_collected(data)
-    reg = flat.get("model_registry", flat.get("registered_models", []))
-    if reg and (isinstance(reg, list) and len(reg) > 0 or isinstance(reg, dict)):
-        return 2, "Model Registry in use; MLOps processes evident."
+    ops = _get(data, "OperationsCollector") or {}
+    endpoint_count = ops.get("endpoint_count", 0) or 0
+    if endpoint_count > 0:
+        return 1, f"{endpoint_count} serving endpoints; Model Registry not verifiable from API. Register models in MLflow."
     return 0, "No Model Registry. Adopt MLOps with MLflow."
 
 
 def _score_ops_005(data: dict) -> tuple[int, str]:
     """Environment isolation."""
-    flat = _flatten_collected(data)
-    workspaces = flat.get("workspaces", flat.get("workspace_count", 0))
-    catalogs = flat.get("catalogs", [])
-    if isinstance(catalogs, list) and len(catalogs) >= 2:
+    gov = _get(data, "GovernanceCollector") or {}
+    catalogs = gov.get("catalogs", [])
+    catalog_count = gov.get("catalog_count", 0) or 0
+    count = catalog_count if catalog_count > 0 else (len(catalogs) if isinstance(catalogs, list) else 0)
+    if count >= 2:
         return 2, "Multiple catalogs; environment isolation via UC."
-    if catalogs:
-        return 1, "Some catalog structure; add dev/test/prod catalogs."
+    if count > 0:
+        return 1, "Single catalog; add dev/test/prod catalogs."
     return 0, "Environment isolation not evident. Use catalogs per environment."
 
 
 def _score_ops_006(data: dict) -> tuple[int, str]:
     """Catalog strategy."""
-    flat = _flatten_collected(data)
-    catalogs = flat.get("catalogs", [])
-    if isinstance(catalogs, list) and len(catalogs) >= 2:
+    gov = _get(data, "GovernanceCollector") or {}
+    catalogs = gov.get("catalogs", [])
+    catalog_count = gov.get("catalog_count", 0) or 0
+    count = catalog_count if catalog_count > 0 else (len(catalogs) if isinstance(catalogs, list) else 0)
+    if count >= 2:
         return 2, "Catalog strategy in place with multiple catalogs."
-    if catalogs:
+    if count > 0:
         return 1, "Single catalog; define dev/test/prod strategy."
     return 0, "No catalog strategy. Use Unity Catalog layering."
 
@@ -414,53 +393,47 @@ def _score_ops_007(data: dict) -> tuple[int, str]:
 
 def _score_ops_008(data: dict) -> tuple[int, str]:
     """Standardize compute."""
-    flat = _flatten_collected(data)
-    policies = flat.get("cluster_policies", [])
-    clusters = flat.get("clusters", [])
-    if isinstance(policies, list) and len(policies) > 0:
-        policy_usage = sum(1 for c in clusters if c.get("policy_id")) if isinstance(clusters, list) else 0
-        if policy_usage > 0 or len(clusters) == 0:
-            return 2, "Cluster policies enforce standardized compute."
-        return 1, "Policies defined; ensure all clusters use them."
+    compute = _get(data, "ComputeCollector") or {}
+    policy_count = compute.get("policy_count", 0) or 0
+    cluster_count = compute.get("cluster_count", 0) or 0
+    if policy_count > 0:
+        return 2, f"{policy_count} cluster policies defined for standardized compute."
+    if cluster_count > 0:
+        return 1, "Clusters present but no policies. Define cluster policies."
     return 0, "No cluster policies. Standardize compute via policies."
 
 
 def _score_ops_009(data: dict) -> tuple[int, str]:
     """Automated workflows."""
-    flat = _flatten_collected(data)
-    jobs = flat.get("jobs", [])
-    if isinstance(jobs, list) and len(jobs) >= 3:
-        return 2, f"{len(jobs)} automated jobs."
-    if jobs:
+    ops = _get(data, "OperationsCollector") or {}
+    job_count = ops.get("job_count", 0) or 0
+    if job_count >= 3:
+        return 2, f"{job_count} automated jobs."
+    if job_count > 0:
         return 1, "Some jobs; expand automation."
     return 0, "No automated workflows. Create jobs for pipelines."
 
 
 def _score_ops_010(data: dict) -> tuple[int, str]:
     """Event-driven ingestion."""
-    flat = _flatten_collected(data)
-    autoloader = flat.get("autoloader_jobs", flat.get("streaming_jobs", []))
-    if autoloader and len(autoloader) > 0:
-        return 2, "Event-driven/streaming ingestion in use."
-    return 1, "Event-driven ingestion not verified. Use Auto Loader."
+    return 1, "Event-driven ingestion not verifiable from API. Use Auto Loader."
 
 
 def _score_ops_011(data: dict) -> tuple[int, str]:
     """ETL frameworks."""
-    flat = _flatten_collected(data)
-    pipelines = flat.get("pipelines", [])
-    dlt = [p for p in pipelines if p.get("workflow_type") == "DLT" or "delta_live" in str(p).lower()] if pipelines else []
-    if dlt and len(dlt) > 0:
-        return 2, "Delta Live Tables (ETL framework) in use."
+    ops = _get(data, "OperationsCollector") or {}
+    pipeline_count = ops.get("pipeline_count", 0) or 0
+    if pipeline_count > 0:
+        return 2, f"Delta Live Tables in use ({pipeline_count} pipelines)."
     return 0, "No DLT pipelines. Adopt Delta Live Tables."
 
 
 def _score_ops_012(data: dict) -> tuple[int, str]:
     """Deploy-code ML."""
-    flat = _flatten_collected(data)
-    serving = flat.get("model_serving_endpoints", flat.get("serving_endpoints", []))
-    if serving and len(serving) > 0:
-        return 2, "Model serving endpoints (deploy-code ML) in use."
+    ops = _get(data, "OperationsCollector") or {}
+    endpoint_count = ops.get("endpoint_count", 0) or 0
+    if endpoint_count > 0:
+        return 2, f"Model serving endpoints in use ({endpoint_count} endpoints)."
     return 1, "Model serving not detected. Use Model Serving for deployment."
 
 
@@ -471,20 +444,12 @@ def _score_ops_013(data: dict) -> tuple[int, str]:
 
 def _score_ops_014(data: dict) -> tuple[int, str]:
     """Automate experiment tracking."""
-    flat = _flatten_collected(data)
-    exps = flat.get("experiments", flat.get("mlflow_experiments", []))
-    if exps and len(exps) > 0:
-        return 2, "MLflow experiments for tracking."
-    return 0, "No experiments. Use MLflow for experiment tracking."
+    return 1, "Experiment tracking not verifiable from API. Use MLflow for experiment tracking."
 
 
 def _score_ops_015(data: dict) -> tuple[int, str]:
     """Reuse ML infra."""
-    flat = _flatten_collected(data)
-    job_clusters = [j for j in (flat.get("jobs") or []) if j.get("job_clusters") or j.get("job_type") == "JOB"]
-    if job_clusters and len(job_clusters) >= 2:
-        return 2, "Job clusters reuse ML infra."
-    return 1, "ML infra reuse not verified. Use job clusters."
+    return 1, "ML infra reuse not verifiable from API. Use job clusters."
 
 
 def _score_ops_016(data: dict) -> tuple[int, str]:
@@ -504,19 +469,18 @@ def _score_ops_018(data: dict) -> tuple[int, str]:
 
 def _score_ops_019(data: dict) -> tuple[int, str]:
     """Monitoring processes."""
-    flat = _flatten_collected(data)
-    alerts = flat.get("alerts", flat.get("monitoring"))
-    if alerts or _get(data, "OperationsCollector"):
-        return 2, "Monitoring/alerts configured."
-    return 1, "Monitoring not fully verified. Configure alerts and dashboards."
+    ops = _get(data, "OperationsCollector") or {}
+    if ops.get("job_count", 0) or ops.get("pipeline_count", 0):
+        return 1, "Jobs/pipelines present; monitoring not fully verifiable from API. Configure alerts and dashboards."
+    return 1, "Monitoring not fully verified from API. Configure alerts and dashboards."
 
 
 def _score_ops_020(data: dict) -> tuple[int, str]:
     """Platform monitoring tools."""
-    flat = _flatten_collected(data)
-    warehouses = flat.get("sql_warehouses", [])
-    if warehouses and len(warehouses) > 0:
-        return 2, "SQL Warehouses enable platform monitoring (query history, etc.)."
+    compute = _get(data, "ComputeCollector") or {}
+    warehouse_count = compute.get("warehouse_count", 0) or 0
+    if warehouse_count > 0:
+        return 2, f"SQL Warehouses enable platform monitoring ({warehouse_count} warehouses)."
     return 1, "Platform monitoring tools not verified. Use Databricks SQL."
 
 
@@ -527,28 +491,23 @@ def _score_ops_020(data: dict) -> tuple[int, str]:
 
 def _score_sec_001(data: dict) -> tuple[int, str]:
     """Least privilege IAM."""
-    flat = _flatten_collected(data)
-    uc = flat.get("unity_catalog", flat.get("metastores"))
-    if uc:
+    gov = _get(data, "GovernanceCollector") or {}
+    if gov.get("metastore_name"):
         return 2, "Unity Catalog enables centralized least-privilege IAM."
     return 1, "Least-privilege IAM not fully verified. Use UC grants."
 
 
 def _score_sec_002(data: dict) -> tuple[int, str]:
     """Data protection transit/rest."""
-    flat = _flatten_collected(data)
-    enc = flat.get("encryption", flat.get("encryption_enabled"))
-    if enc is True or (isinstance(enc, dict) and enc.get("enabled")):
-        return 2, "Encryption (transit/rest) configured."
-    return 1, "Encryption not verified from API. Ensure SSE and TLS."
+    return 1, "Encryption not verifiable from API. Ensure SSE and TLS."
 
 
 def _score_sec_003(data: dict) -> tuple[int, str]:
     """Network security."""
-    flat = _flatten_collected(data)
-    ipl = flat.get("ip_access_lists", flat.get("ip_allow_list", []))
-    if ipl and len(ipl) > 0:
-        return 2, "IP access lists configured for network security."
+    sec = _get(data, "SecurityCollector") or {}
+    ipl_count = sec.get("ip_access_list_count", 0) or 0
+    if ipl_count > 0:
+        return 2, f"IP access lists configured for network security ({ipl_count} lists)."
     return 1, "IP access lists not detected. Configure network restrictions."
 
 
@@ -559,35 +518,25 @@ def _score_sec_004(data: dict) -> tuple[int, str]:
 
 def _score_sec_005(data: dict) -> tuple[int, str]:
     """Compliance requirements."""
-    flat = _flatten_collected(data)
-    audit = flat.get("audit_logs", flat.get("system_tables_accessible"))
-    if audit:
-        return 2, "Audit/compliance controls in place."
+    sec = _get(data, "SecurityCollector") or {}
+    if sec.get("security_settings"):
+        return 1, "Workspace security accessible; audit logging not verifiable from API. Enable system tables for full audit."
     return 1, "Compliance not fully verified. Enable audit logging."
 
 
 def _score_sec_006(data: dict) -> tuple[int, str]:
     """System security monitoring."""
-    flat = _flatten_collected(data)
-    sys_tables = flat.get("system_tables_accessible")
-    if sys_tables is True:
-        return 2, "System tables accessible for security monitoring."
-    return 1, "System tables access not verified. Enable for monitoring."
+    return 1, "System tables access not verifiable from API. Enable for security monitoring."
 
 
 def _score_sec_007(data: dict) -> tuple[int, str]:
     """Generic controls."""
-    flat = _flatten_collected(data)
-    workspace_conf = flat.get("workspace_conf", {}) or _get(data, "SecurityCollector", "workspace_conf") or {}
-    if isinstance(workspace_conf, dict):
-        dbfs_browser = workspace_conf.get("enableDbfsFileBrowser") or workspace_conf.get("enableDbfsBrowser")
-        if dbfs_browser is False or dbfs_browser == "false":
-            return 2, "DBFS browser restricted; workspace conf enforces security controls."
-        if dbfs_browser is True or dbfs_browser == "true":
-            return 1, "DBFS browser enabled; consider disabling for stricter access control."
-    policies = flat.get("cluster_policies", [])
-    if policies and len(policies) > 0:
-        return 2, "Cluster policies enforce security controls."
+    compute = _get(data, "ComputeCollector") or {}
+    sec = _get(data, "SecurityCollector") or {}
+    policy_count = compute.get("policy_count", 0) or 0
+    sec_settings = sec.get("security_settings", {})
+    if policy_count > 0 or sec_settings:
+        return 1, "Cluster policies and/or security settings present; workspace conf not verifiable from API."
     return 1, "Generic controls not fully verified. Use policies and workspace conf."
 
 
@@ -603,33 +552,28 @@ def _score_rel_001(data: dict) -> tuple[int, str]:
 
 def _score_rel_002(data: dict) -> tuple[int, str]:
     """Resilient engine."""
-    flat = _flatten_collected(data)
-    clusters = flat.get("clusters", [])
-    photon = sum(1 for c in clusters if c.get("runtime_engine") == "PHOTON" or c.get("photon")) if clusters else 0
-    if photon > 0 and len(clusters) > 0:
-        return 2, "Photon (resilient engine) in use."
+    compute = _get(data, "ComputeCollector") or {}
+    cluster_count = compute.get("cluster_count", 0) or 0
+    if cluster_count > 0:
+        return 1, "Photon usage not verifiable from cluster metadata. Use Photon for better resilience."
     return 1, "Photon not detected. Use Photon for better resilience."
 
 
 def _score_rel_003(data: dict) -> tuple[int, str]:
     """Rescue invalid data."""
-    flat = _flatten_collected(data)
-    pipelines = flat.get("pipelines", [])
-    autoloader = flat.get("autoloader", flat.get("rescue_data"))
-    if autoloader or any("autoloader" in str(p).lower() or "rescued" in str(p).lower() for p in (pipelines or [])):
-        return 2, "Auto Loader/rescue invalid data pattern in use."
+    ops = _get(data, "OperationsCollector") or {}
+    pipeline_count = ops.get("pipeline_count", 0) or 0
+    if pipeline_count > 0:
+        return 1, "Rescue invalid data pattern not verifiable from pipeline metadata. Use Auto Loader rescued column."
     return 0, "Rescue invalid data not detected. Use Auto Loader rescued column."
 
 
 def _score_rel_004(data: dict) -> tuple[int, str]:
     """Auto retries."""
-    flat = _flatten_collected(data)
-    jobs = flat.get("jobs", [])
-    with_retries = sum(1 for j in jobs if j.get("max_retries", 0) > 0 or j.get("retry_on_timeout")) if jobs else 0
-    if with_retries > 0 and len(jobs) > 0:
-        return 2, f"{with_retries} jobs configured with retries."
-    if jobs:
-        return 1, "Configure retries on jobs for resilience."
+    ops = _get(data, "OperationsCollector") or {}
+    job_count = ops.get("job_count", 0) or 0
+    if job_count > 0:
+        return 1, "Retry configuration not verifiable from API. Configure retries on jobs for resilience."
     return 0, "No jobs; add retries when creating jobs."
 
 
@@ -640,11 +584,12 @@ def _score_rel_005(data: dict) -> tuple[int, str]:
 
 def _score_rel_006(data: dict) -> tuple[int, str]:
     """Managed services."""
-    flat = _flatten_collected(data)
-    jobs = flat.get("jobs", [])
-    pipelines = flat.get("pipelines", [])
-    whs = flat.get("sql_warehouses", [])
-    total = len(jobs or []) + len(pipelines or []) + len(whs or [])
+    ops = _get(data, "OperationsCollector") or {}
+    compute = _get(data, "ComputeCollector") or {}
+    job_count = ops.get("job_count", 0) or 0
+    pipeline_count = ops.get("pipeline_count", 0) or 0
+    warehouse_count = compute.get("warehouse_count", 0) or 0
+    total = job_count + pipeline_count + warehouse_count
     if total >= 3:
         return 2, "Managed services (jobs, DLT, SQL) in use."
     if total > 0:
@@ -654,12 +599,13 @@ def _score_rel_006(data: dict) -> tuple[int, str]:
 
 def _score_rel_007(data: dict) -> tuple[int, str]:
     """Layered storage."""
-    flat = _flatten_collected(data)
-    catalogs = flat.get("catalogs", [])
-    schemas = flat.get("schemas", [])
-    if isinstance(catalogs, list) and isinstance(schemas, list) and len(catalogs) >= 2 and len(schemas) >= 2:
-        return 2, "Layered storage via catalogs/schemas."
-    if catalogs or schemas:
+    gov = _get(data, "GovernanceCollector") or {}
+    catalogs = gov.get("catalogs", [])
+    catalog_count = gov.get("catalog_count", 0) or 0
+    count = catalog_count if catalog_count > 0 else (len(catalogs) if isinstance(catalogs, list) else 0)
+    if count >= 2:
+        return 1, "Multiple catalogs; schema layering not verifiable from API. Verify bronze/silver/gold."
+    if count > 0:
         return 1, "Partial layering; adopt bronze/silver/gold."
     return 0, "No layered storage. Use catalog/schema layering."
 
@@ -671,10 +617,9 @@ def _score_rel_008(data: dict) -> tuple[int, str]:
 
 def _score_rel_009(data: dict) -> tuple[int, str]:
     """Active schema mgmt."""
-    flat = _flatten_collected(data)
-    constraints = flat.get("constraints", flat.get("expectations", []))
-    if constraints and len(constraints) > 0:
-        return 2, "Schema constraints/expectations for active management."
+    ops = _get(data, "OperationsCollector") or {}
+    if ops.get("pipeline_count", 0) > 0:
+        return 1, "DLT pipelines present; schema constraints not verifiable from API. Use Delta constraints."
     return 1, "Schema management not verified. Use Delta constraints."
 
 
@@ -685,36 +630,26 @@ def _score_rel_010(data: dict) -> tuple[int, str]:
 
 def _score_rel_011(data: dict) -> tuple[int, str]:
     """Data-centric ML."""
-    flat = _flatten_collected(data)
-    fs = flat.get("feature_store", flat.get("feature_tables"))
-    if fs:
-        return 2, "Feature Store (data-centric ML) in use."
-    return 1, "Feature Store not detected. Use for data-centric ML."
+    return 1, "Feature Store not verifiable from API. Use for data-centric ML."
 
 
 def _score_rel_012(data: dict) -> tuple[int, str]:
     """ETL autoscaling."""
-    flat = _flatten_collected(data)
-    pipelines = flat.get("pipelines", [])
-    autoscale = [p for p in (pipelines or []) if p.get("enable_autoscaling") or p.get("autoscale")] if pipelines else []
-    if autoscale and len(autoscale) > 0:
-        return 2, "DLT pipelines with autoscaling."
-    if pipelines:
-        return 1, "Enable autoscaling on DLT pipelines."
+    ops = _get(data, "OperationsCollector") or {}
+    pipeline_count = ops.get("pipeline_count", 0) or 0
+    if pipeline_count > 0:
+        return 1, "DLT autoscaling not verifiable from pipeline metadata. Enable on DLT pipelines."
     return 0, "No DLT pipelines. Use DLT with autoscaling."
 
 
 def _score_rel_013(data: dict) -> tuple[int, str]:
     """SQL warehouse autoscaling."""
-    flat = _flatten_collected(data)
-    whs = flat.get("sql_warehouses", flat.get("warehouses", []))
-    if isinstance(whs, list):
-        with_scale = [w for w in whs if w.get("max_num_clusters", 1) > 1 or w.get("enable_serverless_compute")]
-        if with_scale and len(with_scale) / max(len(whs), 1) >= 0.5:
-            return 2, "SQL warehouses use autoscaling."
-        if with_scale:
-            return 1, "Partial autoscaling; enable on all warehouses."
-    return 0, "SQL warehouse autoscaling not detected. Enable multi-cluster or serverless."
+    compute = _get(data, "ComputeCollector") or {}
+    warehouse_count = compute.get("warehouse_count", 0) or 0
+    wh_configs = compute.get("warehouse_configs", [])
+    if warehouse_count > 0 or wh_configs:
+        return 1, "Warehouse autoscaling not verifiable from API. Enable multi-cluster or serverless."
+    return 0, "No SQL warehouses. Enable multi-cluster or serverless for autoscaling."
 
 
 def _score_rel_014(data: dict) -> tuple[int, str]:
@@ -724,20 +659,18 @@ def _score_rel_014(data: dict) -> tuple[int, str]:
 
 def _score_rel_015(data: dict) -> tuple[int, str]:
     """Streaming recovery."""
-    flat = _flatten_collected(data)
-    pipelines = flat.get("pipelines", [])
-    checkpoint = any(p.get("storage") or p.get("checkpoint") for p in (pipelines or []))
-    if checkpoint or pipelines:
-        return 2, "DLT checkpoints enable streaming recovery."
+    ops = _get(data, "OperationsCollector") or {}
+    pipeline_count = ops.get("pipeline_count", 0) or 0
+    if pipeline_count > 0:
+        return 1, "DLT checkpoints used by default; storage config not verifiable from API."
     return 0, "Streaming recovery not verified. Use DLT with checkpoints."
 
 
 def _score_rel_016(data: dict) -> tuple[int, str]:
     """Time travel recovery."""
-    flat = _flatten_collected(data)
-    delta = flat.get("delta_tables", 0)
-    if isinstance(delta, (int, float)) and delta > 0:
-        return 2, "Delta Lake enables time travel recovery."
+    gov = _get(data, "GovernanceCollector") or {}
+    if gov.get("metastore_name") and (gov.get("catalog_count", 0) or 0) > 0:
+        return 2, "Unity Catalog with Delta Lake enables time travel recovery."
     return 0, "Delta Lake required for time travel. Migrate tables."
 
 
@@ -758,13 +691,10 @@ def _score_rel_018(data: dict) -> tuple[int, str]:
 
 def _score_perf_001(data: dict) -> tuple[int, str]:
     """Scaling."""
-    flat = _flatten_collected(data)
-    clusters = flat.get("clusters", [])
-    autoscale = sum(1 for c in clusters if c.get("autoscale") or c.get("num_workers", 0) == 0) if clusters else 0
-    if autoscale > 0 and len(clusters) > 0:
-        return 2, "Autoscaling configured on clusters."
-    if clusters:
-        return 1, "Enable autoscaling on clusters."
+    compute = _get(data, "ComputeCollector") or {}
+    cluster_count = compute.get("cluster_count", 0) or 0
+    if cluster_count > 0:
+        return 1, "Cluster autoscaling not verifiable from API. Enable autoscaling when provisioning."
     return 0, "No clusters. Configure autoscaling when adding compute."
 
 
@@ -775,20 +705,15 @@ def _score_perf_002(data: dict) -> tuple[int, str]:
 
 def _score_perf_003(data: dict) -> tuple[int, str]:
     """Data patterns."""
-    flat = _flatten_collected(data)
-    tables = flat.get("tables_optimized", flat.get("optimized_tables", 0))
-    if isinstance(tables, (int, float)) and tables > 0:
-        return 2, "Data optimization (OPTIMIZE/Z-ORDER) in use."
-    return 1, "Data patterns not verified. Use OPTIMIZE and Z-ORDER."
+    return 1, "Data optimization (OPTIMIZE/Z-ORDER) not verifiable from API. Use OPTIMIZE and Z-ORDER."
 
 
 def _score_perf_004(data: dict) -> tuple[int, str]:
     """Parallel computation."""
-    flat = _flatten_collected(data)
-    clusters = flat.get("clusters", [])
-    workers = sum(c.get("num_workers", 0) for c in clusters) if clusters else 0
-    if workers >= 4:
-        return 2, "Parallel computation via multi-worker clusters."
+    compute = _get(data, "ComputeCollector") or {}
+    cluster_count = compute.get("cluster_count", 0) or 0
+    if cluster_count > 0:
+        return 1, "Worker count not verifiable from cluster metadata. Scale workers for throughput."
     return 1, "Parallelism not fully utilized. Scale workers for throughput."
 
 
@@ -799,13 +724,10 @@ def _score_perf_005(data: dict) -> tuple[int, str]:
 
 def _score_perf_006(data: dict) -> tuple[int, str]:
     """Larger clusters."""
-    flat = _flatten_collected(data)
-    clusters = flat.get("clusters", [])
-    if clusters:
-        max_workers = max(c.get("num_workers", 0) or c.get("autoscale", {}).get("max_workers", 0) for c in clusters)
-        if max_workers >= 4:
-            return 2, "Larger clusters for workload-appropriate scale."
-        return 1, "Consider larger clusters for heavy workloads."
+    compute = _get(data, "ComputeCollector") or {}
+    cluster_count = compute.get("cluster_count", 0) or 0
+    if cluster_count > 0:
+        return 1, "Cluster size not verifiable from API. Right-size for workload-appropriate scale."
     return 0, "No clusters. Right-size when provisioning."
 
 
@@ -821,20 +743,16 @@ def _score_perf_008(data: dict) -> tuple[int, str]:
 
 def _score_perf_009(data: dict) -> tuple[int, str]:
     """Hardware awareness."""
-    flat = _flatten_collected(data)
-    clusters = flat.get("clusters", [])
-    if clusters:
-        return 2, "Cluster configs imply hardware awareness. Use instance types for workload."
+    compute = _get(data, "ComputeCollector") or {}
+    cluster_count = compute.get("cluster_count", 0) or 0
+    if cluster_count > 0:
+        return 1, "Instance types not verifiable from cluster metadata. Match to workload."
     return 1, "Hardware awareness not verified. Match instance types to workload."
 
 
 def _score_perf_010(data: dict) -> tuple[int, str]:
     """Caching."""
-    flat = _flatten_collected(data)
-    cache = flat.get("delta_cache", flat.get("photon_cache"))
-    if cache is True or (isinstance(cache, dict) and cache.get("enabled")):
-        return 2, "Delta Cache/caching enabled."
-    return 1, "Caching not verified. Use Delta Cache for repeated reads."
+    return 1, "Caching not verifiable from API. Use Delta Cache for repeated reads."
 
 
 def _score_perf_011(data: dict) -> tuple[int, str]:
@@ -869,46 +787,47 @@ def _score_perf_016(data: dict) -> tuple[int, str]:
 
 def _score_perf_017(data: dict) -> tuple[int, str]:
     """Prewarming."""
-    flat = _flatten_collected(data)
-    whs = flat.get("sql_warehouses", [])
-    prewarm = [w for w in whs if w.get("enable_photon") or w.get("channel", {}).get("name") == "CHANNEL_NAME_PREVIEW"]
-    if prewarm and len(prewarm) > 0:
-        return 2, "Prewarm or Photon warehouses in use."
+    compute = _get(data, "ComputeCollector") or {}
+    wh_configs = compute.get("warehouse_configs", [])
+    warehouse_count = compute.get("warehouse_count", 0) or 0
+    if warehouse_count > 0 or wh_configs:
+        return 1, "Prewarm/Photon not verifiable from warehouse config. Use for latency-sensitive workloads."
     return 1, "Prewarm not verified. Use for latency-sensitive workloads."
 
 
 def _score_perf_018(data: dict) -> tuple[int, str]:
     """Identify bottlenecks."""
-    flat = _flatten_collected(data)
-    if flat.get("query_history") or flat.get("sql_warehouses"):
-        return 2, "Query history/SQL available for bottleneck identification."
+    compute = _get(data, "ComputeCollector") or {}
+    warehouse_count = compute.get("warehouse_count", 0) or 0
+    if warehouse_count > 0:
+        return 2, "SQL Warehouses enable query history for bottleneck identification."
     return 1, "Use query history and Spark UI for bottleneck analysis."
 
 
 def _score_perf_019(data: dict) -> tuple[int, str]:
     """Monitor queries."""
-    flat = _flatten_collected(data)
-    whs = flat.get("sql_warehouses", [])
-    if whs and len(whs) > 0:
-        return 2, "SQL Warehouses enable query monitoring."
+    compute = _get(data, "ComputeCollector") or {}
+    warehouse_count = compute.get("warehouse_count", 0) or 0
+    if warehouse_count > 0:
+        return 2, f"SQL Warehouses enable query monitoring ({warehouse_count} warehouses)."
     return 1, "Enable SQL Warehouses for query monitoring."
 
 
 def _score_perf_020(data: dict) -> tuple[int, str]:
     """Monitor streaming."""
-    flat = _flatten_collected(data)
-    pipelines = flat.get("pipelines", [])
-    if pipelines:
-        return 2, "DLT pipelines enable streaming monitoring."
+    ops = _get(data, "OperationsCollector") or {}
+    pipeline_count = ops.get("pipeline_count", 0) or 0
+    if pipeline_count > 0:
+        return 2, f"DLT pipelines enable streaming monitoring ({pipeline_count} pipelines)."
     return 0, "No streaming pipelines. Use DLT for monitoring."
 
 
 def _score_perf_021(data: dict) -> tuple[int, str]:
     """Monitor jobs."""
-    flat = _flatten_collected(data)
-    jobs = flat.get("jobs", [])
-    if jobs:
-        return 2, "Jobs enable cluster/job monitoring."
+    ops = _get(data, "OperationsCollector") or {}
+    job_count = ops.get("job_count", 0) or 0
+    if job_count > 0:
+        return 2, f"Jobs enable cluster/job monitoring ({job_count} jobs)."
     return 0, "No jobs. Create jobs for operational visibility."
 
 
@@ -924,42 +843,34 @@ def _score_cost_001(data: dict) -> tuple[int, str]:
 
 def _score_cost_002(data: dict) -> tuple[int, str]:
     """Job clusters."""
-    flat = _flatten_collected(data)
-    jobs = flat.get("jobs", [])
-    job_clusters = [j for j in jobs if j.get("job_clusters") or j.get("job_type") == "JOB" and not j.get("existing_cluster_id")] if jobs else []
-    if job_clusters and len(job_clusters) / max(len(jobs), 1) >= 0.5:
-        return 2, "Job clusters used for cost efficiency."
-    if job_clusters:
-        return 1, "Some job clusters; expand to more jobs."
+    ops = _get(data, "OperationsCollector") or {}
+    job_count = ops.get("job_count", 0) or 0
+    if job_count > 0:
+        return 1, "Job cluster usage not verifiable from API. Use job clusters for cost efficiency."
     return 0, "Use job clusters instead of all-purpose clusters."
 
 
 def _score_cost_003(data: dict) -> tuple[int, str]:
     """SQL for SQL."""
-    flat = _flatten_collected(data)
-    whs = flat.get("sql_warehouses", [])
-    if whs and len(whs) > 0:
-        return 2, "SQL Warehouses used for SQL workloads."
+    compute = _get(data, "ComputeCollector") or {}
+    warehouse_count = compute.get("warehouse_count", 0) or 0
+    if warehouse_count > 0:
+        return 2, f"SQL Warehouses used for SQL workloads ({warehouse_count} warehouses)."
     return 1, "SQL Warehouses not detected. Use for BI/SQL workloads."
 
 
 def _score_cost_004(data: dict) -> tuple[int, str]:
     """Up-to-date runtimes."""
-    flat = _flatten_collected(data)
-    clusters = flat.get("clusters", [])
-    if clusters:
-        return 2, "Runtime version check requires DBR version API. Assume maintained."
+    compute = _get(data, "ComputeCollector") or {}
+    cluster_count = compute.get("cluster_count", 0) or 0
+    if cluster_count > 0:
+        return 1, "Runtime version not verifiable from API. Keep DBR runtimes up to date."
     return 1, "Keep DBR runtimes up to date for security and performance."
 
 
 def _score_cost_005(data: dict) -> tuple[int, str]:
     """GPU right workloads."""
-    flat = _flatten_collected(data)
-    clusters = flat.get("clusters", [])
-    gpu = [c for c in clusters if "gpu" in str(c.get("node_type_id", "")).lower() or c.get("gpu")] if clusters else []
-    if gpu:
-        return 2, "GPU clusters for appropriate ML workloads."
-    return 1, "GPU usage not detected. Use only for ML training/inference."
+    return 1, "GPU usage not verifiable from cluster metadata. Use only for ML training/inference."
 
 
 def _score_cost_006(data: dict) -> tuple[int, str]:
@@ -969,22 +880,19 @@ def _score_cost_006(data: dict) -> tuple[int, str]:
 
 def _score_cost_007(data: dict) -> tuple[int, str]:
     """Right instance type."""
-    flat = _flatten_collected(data)
-    policies = flat.get("cluster_policies", [])
-    if policies:
-        return 2, "Cluster policies help enforce right instance types."
+    compute = _get(data, "ComputeCollector") or {}
+    policy_count = compute.get("policy_count", 0) or 0
+    if policy_count > 0:
+        return 2, f"Cluster policies help enforce right instance types ({policy_count} policies)."
     return 1, "Define policies to restrict instance types."
 
 
 def _score_cost_008(data: dict) -> tuple[int, str]:
     """Efficient compute size."""
-    flat = _flatten_collected(data)
-    clusters = flat.get("clusters", [])
-    if clusters:
-        autoscale = sum(1 for c in clusters if c.get("autoscale"))
-        if autoscale > 0:
-            return 2, "Autoscaling enables efficient compute size."
-        return 1, "Enable autoscaling for right-sizing."
+    compute = _get(data, "ComputeCollector") or {}
+    cluster_count = compute.get("cluster_count", 0) or 0
+    if cluster_count > 0:
+        return 1, "Autoscaling not verifiable from cluster metadata. Enable for right-sizing."
     return 0, "Configure efficient compute size when provisioning."
 
 
@@ -995,27 +903,22 @@ def _score_cost_009(data: dict) -> tuple[int, str]:
 
 def _score_cost_010(data: dict) -> tuple[int, str]:
     """Auto-scaling."""
-    flat = _flatten_collected(data)
-    whs = flat.get("sql_warehouses", [])
-    clusters = flat.get("clusters", [])
-    with_scale = sum(1 for w in whs if w.get("max_num_clusters", 1) > 1) if whs else 0
-    with_scale += sum(1 for c in clusters if c.get("autoscale")) if clusters else 0
-    if with_scale > 0:
-        return 2, "Auto-scaling configured on warehouses and/or clusters."
+    compute = _get(data, "ComputeCollector") or {}
+    warehouse_count = compute.get("warehouse_count", 0) or 0
+    cluster_count = compute.get("cluster_count", 0) or 0
+    wh_configs = compute.get("warehouse_configs", [])
+    if warehouse_count > 0 or cluster_count > 0 or wh_configs:
+        return 1, "Auto-scaling not verifiable from API. Enable on warehouses and clusters for cost efficiency."
     return 0, "Enable auto-scaling for cost efficiency."
 
 
 def _score_cost_011(data: dict) -> tuple[int, str]:
     """Auto-termination."""
-    flat = _flatten_collected(data)
-    whs = flat.get("sql_warehouses", flat.get("warehouses", []))
-    clusters = flat.get("clusters", [])
-    wh_stopped = [w for w in whs if w.get("auto_stop_mins") and w.get("auto_stop_mins") <= 120] if whs else []
-    cluster_stop = [c for c in clusters if c.get("auto_termination_minutes")] if clusters else []
-    if (wh_stopped and len(wh_stopped) / max(len(whs), 1) >= 0.5) or cluster_stop:
-        return 2, "Auto-termination configured to reduce idle cost."
-    if whs or clusters:
-        return 1, "Configure auto-stop on warehouses and clusters."
+    compute = _get(data, "ComputeCollector") or {}
+    warehouse_count = compute.get("warehouse_count", 0) or 0
+    cluster_count = compute.get("cluster_count", 0) or 0
+    if warehouse_count > 0 or cluster_count > 0:
+        return 1, "Auto-termination not verifiable from API. Configure auto-stop on warehouses and clusters."
     return 0, "Enable auto-termination when provisioning."
 
 
@@ -1026,22 +929,15 @@ def _score_cost_012(data: dict) -> tuple[int, str]:
 
 def _score_cost_013(data: dict) -> tuple[int, str]:
     """Monitor costs."""
-    flat = _flatten_collected(data)
-    tags = flat.get("cluster_tags", flat.get("cost_tags", flat.get("tags")))
-    if tags and (isinstance(tags, list) and len(tags) > 0 or isinstance(tags, dict) and len(tags) > 0):
-        return 2, "Cost tagging in place for monitoring."
-    return 1, "Cost monitoring not verified. Add tags for cost allocation."
+    return 1, "Cost tagging not verifiable from API. Add tags for cost allocation."
 
 
 def _score_cost_014(data: dict) -> tuple[int, str]:
     """Tag clusters."""
-    flat = _flatten_collected(data)
-    clusters = flat.get("clusters", [])
-    tagged = [c for c in clusters if c.get("custom_tags") and len(c.get("custom_tags", {})) > 0] if clusters else []
-    if tagged and len(tagged) / max(len(clusters), 1) >= 0.5:
-        return 2, "Clusters tagged for cost allocation."
-    if tagged:
-        return 1, "Some clusters tagged; expand coverage."
+    compute = _get(data, "ComputeCollector") or {}
+    cluster_count = compute.get("cluster_count", 0) or 0
+    if cluster_count > 0:
+        return 1, "Cluster tagging not verifiable from API. Tag clusters for cost allocation."
     return 0, "Tag clusters for chargeback and cost monitoring."
 
 

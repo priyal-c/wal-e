@@ -35,7 +35,7 @@ DB_ORANGE = RGBColor(0xF5, 0x9E, 0x0B) if PPTX_AVAILABLE else None
 
 
 class PPTXDeckReporter(BaseReporter):
-    """Generates PPTX presentation with 11 slides and Databricks branding."""
+    """Generates PPTX presentation with Databricks branding."""
 
     def __init__(self):
         super().__init__("WAL_Assessment_Presentation.pptx")
@@ -65,6 +65,8 @@ class PPTXDeckReporter(BaseReporter):
         workspace_host = self._get_workspace_host(scored_assessment)
         assessment_date = self._get_assessment_date(scored_assessment)
 
+        overall_pct = self._score_to_pct(overall_score)
+
         # Top findings
         sorted_findings = sorted(
             [bp for bp in best_practice_scores if bp.get("score") is not None],
@@ -75,7 +77,7 @@ class PPTXDeckReporter(BaseReporter):
         self._add_title_slide(prs, workspace_host, assessment_date)
 
         # Slide 2: Executive Summary
-        self._add_executive_slide(prs, overall_score, maturity_level, pillar_scores)
+        self._add_executive_slide(prs, overall_pct, maturity_level, pillar_scores)
 
         # Slide 3: Workspace Inventory
         self._add_workspace_slide(prs, collected_data)
@@ -83,17 +85,17 @@ class PPTXDeckReporter(BaseReporter):
         # Slide 4: Top Findings
         self._add_findings_slide(prs, sorted_findings)
 
-        # Slides 5-8: Pillar Deep Dives (4 pillars)
-        for pillar in PILLAR_ORDER[:4]:
+        # Slides 5+: Pillar Deep Dives
+        for pillar in PILLAR_ORDER:
             self._add_pillar_slide(prs, pillar, pillar_scores, best_practice_scores)
 
-        # Slide 9: Roadmap
+        # Roadmap
         self._add_roadmap_slide(prs)
 
-        # Slide 10: Next Steps
+        # Next Steps
         self._add_next_steps_slide(prs)
 
-        # Slide 11: Thank You
+        # Thank You
         self._add_thank_you_slide(prs, workspace_host)
 
         prs.save(str(output_path))
@@ -129,7 +131,7 @@ class PPTXDeckReporter(BaseReporter):
     def _add_executive_slide(
         self,
         prs: "Presentation",
-        overall_score: float,
+        overall_pct: float,
         maturity_level: str,
         pillar_scores: Dict[str, float],
     ) -> None:
@@ -145,7 +147,7 @@ class PPTXDeckReporter(BaseReporter):
 
         # Metric boxes
         tx2 = slide.shapes.add_textbox(Inches(0.5), Inches(1.5), Inches(3), Inches(1))
-        tx2.text_frame.text = self._format_score(overall_score)
+        tx2.text_frame.text = f"{overall_pct:.0f}%"
         tx2.text_frame.paragraphs[0].font.size = Pt(36)
         tx2.text_frame.paragraphs[0].font.bold = True
         tx2.text_frame.paragraphs[0].font.color.rgb = DB_RED
@@ -167,10 +169,12 @@ class PPTXDeckReporter(BaseReporter):
 
         # Pillar scores
         y = 3.0
-        for pillar in PILLAR_ORDER[:5]:  # First 5 pillars
-            score = pillar_scores.get(pillar) or 0
+        for pillar in PILLAR_ORDER:
+            score = pillar_scores.get(pillar, 0)
+            pct = self._score_to_pct(score)
+            display = self._pillar_display_name(pillar)
             tx_p = slide.shapes.add_textbox(Inches(0.5), Inches(y), Inches(8), Inches(0.4))
-            tx_p.text_frame.text = f"{pillar}: {self._format_score(score)}"
+            tx_p.text_frame.text = f"{display}: {pct:.0f}% ({score:.1f}/2.0)"
             tx_p.text_frame.paragraphs[0].font.size = Pt(12)
             tx_p.text_frame.paragraphs[0].font.color.rgb = DB_WHITE
             y += 0.45
@@ -189,23 +193,28 @@ class PPTXDeckReporter(BaseReporter):
         p.font.color.rgb = DB_RED
 
         y = 1.5
-        if collected_data:
-            for key, val in list(collected_data.items())[:12]:
-                if isinstance(val, list):
-                    text = f"{key}: {len(val)} items"
-                elif isinstance(val, dict):
-                    text = f"{key}: {len(val)} items"
-                else:
-                    text = f"{key}: {val}"
-                tx_i = slide.shapes.add_textbox(Inches(0.5), Inches(y), Inches(12), Inches(0.4))
-                tx_i.text_frame.text = text
-                tx_i.text_frame.paragraphs[0].font.size = Pt(12)
-                tx_i.text_frame.paragraphs[0].font.color.rgb = DB_WHITE
-                y += 0.45
-        else:
-            tx_n = slide.shapes.add_textbox(Inches(0.5), Inches(y), Inches(12), Inches(0.5))
-            tx_n.text_frame.text = "No collected data available."
-            tx_n.text_frame.paragraphs[0].font.color.rgb = DB_GRAY
+        gov = collected_data.get("GovernanceCollector", {})
+        compute = collected_data.get("ComputeCollector", {})
+        ops = collected_data.get("OperationsCollector", {})
+
+        metrics = [
+            ("Catalogs", gov.get("catalog_count", "N/A")),
+            ("External Locations", gov.get("external_location_count", "N/A")),
+            ("Storage Credentials", gov.get("storage_credential_count", "N/A")),
+            ("Running Clusters", compute.get("running_clusters", compute.get("cluster_count", "N/A"))),
+            ("SQL Warehouses", compute.get("warehouse_count", "N/A")),
+            ("Cluster Policies", compute.get("policy_count", "N/A")),
+            ("Jobs", ops.get("job_count", "N/A")),
+            ("DLT Pipelines", ops.get("pipeline_count", "N/A")),
+            ("Serving Endpoints", ops.get("endpoint_count", "N/A")),
+            ("Git Repos", ops.get("repo_count", "N/A")),
+        ]
+        for label, value in metrics:
+            tx_i = slide.shapes.add_textbox(Inches(0.5), Inches(y), Inches(12), Inches(0.4))
+            tx_i.text_frame.text = f"{label}: {value}"
+            tx_i.text_frame.paragraphs[0].font.size = Pt(12)
+            tx_i.text_frame.paragraphs[0].font.color.rgb = DB_WHITE
+            y += 0.45
 
     def _add_findings_slide(
         self, prs: "Presentation", findings: List[BestPracticeScore]
@@ -222,12 +231,12 @@ class PPTXDeckReporter(BaseReporter):
 
         y = 1.5
         for fp in findings:
+            display = self._pillar_display_name(fp.get("pillar", ""))
             name = fp.get("name", "Unknown")
-            pillar = fp.get("pillar", "")
             score_val = fp.get("score", "-")
-            text = f"• {pillar}: {name} (Score: {score_val})"
+            text = f"\u2022 [{score_val}] {display}: {name}"
             tx_i = slide.shapes.add_textbox(Inches(0.5), Inches(y), Inches(12), Inches(0.5))
-            tx_i.text_frame.text = text[:80] + ("..." if len(text) > 80 else "")
+            tx_i.text_frame.text = text[:90] + ("..." if len(text) > 90 else "")
             tx_i.text_frame.paragraphs[0].font.size = Pt(11)
             tx_i.text_frame.paragraphs[0].font.color.rgb = DB_WHITE
             y += 0.5
@@ -243,29 +252,28 @@ class PPTXDeckReporter(BaseReporter):
         pillar_scores: Dict[str, float],
         best_practice_scores: List[BestPracticeScore],
     ) -> None:
+        display = self._pillar_display_name(pillar)
         slide_layout = prs.slide_layouts[6]
         slide = prs.slides.add_slide(slide_layout)
         left, top = Inches(0.5), Inches(0.5)
         tx = slide.shapes.add_textbox(left, top, Inches(12), Inches(1))
         p = tx.text_frame.paragraphs[0]
-        p.text = pillar
+        p.text = display
         p.font.size = Pt(28)
         p.font.bold = True
         p.font.color.rgb = DB_RED
 
-        score = pillar_scores.get(pillar) or 0
+        score = pillar_scores.get(pillar, 0)
+        pct = self._score_to_pct(score)
         tx2 = slide.shapes.add_textbox(Inches(0.5), Inches(1.2), Inches(4), Inches(0.5))
-        tx2.text_frame.text = f"Pillar Score: {self._format_score(score)}"
+        tx2.text_frame.text = f"Pillar Score: {pct:.0f}% ({score:.1f}/2.0)"
         tx2.text_frame.paragraphs[0].font.size = Pt(14)
         tx2.text_frame.paragraphs[0].font.color.rgb = DB_WHITE
 
         y = 2.0
-        pillar_bps = [
-            bp for bp in best_practice_scores
-            if (bp.get("pillar") or "").strip() == pillar
-        ][:6]
-        for bp in pillar_bps:
-            text = f"• {bp.get('name', 'Unknown')} — Score: {bp.get('score', '-')}"
+        pillar_bps = self._get_bps_for_pillar(best_practice_scores, pillar)
+        for bp in pillar_bps[:8]:
+            text = f"\u2022 {bp.get('name', 'Unknown')} \u2014 Score: {bp.get('score', '-')}"
             tx_i = slide.shapes.add_textbox(Inches(0.5), Inches(y), Inches(12), Inches(0.5))
             tx_i.text_frame.text = text[:90] + ("..." if len(text) > 90 else "")
             tx_i.text_frame.paragraphs[0].font.size = Pt(11)
@@ -295,7 +303,7 @@ class PPTXDeckReporter(BaseReporter):
         y = 1.5
         for phase, title, desc in phases:
             tx_p = slide.shapes.add_textbox(Inches(0.5), Inches(y), Inches(12), Inches(0.5))
-            tx_p.text_frame.text = f"{phase}: {title} — {desc}"
+            tx_p.text_frame.text = f"{phase}: {title} \u2014 {desc}"
             tx_p.text_frame.paragraphs[0].font.size = Pt(12)
             tx_p.text_frame.paragraphs[0].font.color.rgb = DB_WHITE
             y += 0.7
@@ -312,7 +320,7 @@ class PPTXDeckReporter(BaseReporter):
 
         steps = [
             "1. Prioritize findings based on business impact",
-            "2. Assign owners for Phase 1–4 initiatives",
+            "2. Assign owners for Phase 1\u20134 initiatives",
             "3. Schedule follow-up assessment in 90 days",
             "4. Leverage WAL-E for ongoing monitoring",
         ]
@@ -337,7 +345,7 @@ class PPTXDeckReporter(BaseReporter):
 
         tx2 = slide.shapes.add_textbox(Inches(2), Inches(4), Inches(9), Inches(0.5))
         p2 = tx2.text_frame.paragraphs[0]
-        p2.text = f"Well-Architected Lakehouse Assessment — {workspace_host}"
+        p2.text = f"Well-Architected Lakehouse Assessment \u2014 {workspace_host}"
         p2.font.size = Pt(14)
         p2.font.color.rgb = DB_GRAY
         p2.alignment = 1

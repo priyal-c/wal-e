@@ -6,8 +6,8 @@ from .base import (
     AuditEntry,
     BaseReporter,
     BestPracticeScore,
-    BEST_PRACTICES,
     PILLAR_ORDER,
+    PILLAR_DISPLAY_NAMES,
     ScoredAssessment,
 )
 from .markdown import MarkdownReporter
@@ -21,8 +21,8 @@ __all__ = [
     "ScoredAssessment",
     "BestPracticeScore",
     "AuditEntry",
-    "BEST_PRACTICES",
     "PILLAR_ORDER",
+    "PILLAR_DISPLAY_NAMES",
     "MarkdownReporter",
     "CSVReporter",
     "HTMLDeckReporter",

@@ -1,5 +1,5 @@
 """
-CSV reporter - Generates WAL_Assessment_Scores.csv with all 99 best practices.
+CSV reporter - Generates WAL_Assessment_Scores.csv with all scored best practices.
 """
 
 import csv
@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Union
 
 from .base import (
-    BEST_PRACTICES,
+    PILLAR_ORDER,
     AuditEntry,
     BaseReporter,
     BestPracticeScore,
@@ -16,7 +16,8 @@ from .base import (
 
 
 class CSVReporter(BaseReporter):
-    """Generates WAL_Assessment_Scores.csv with columns: Pillar, Principle, Best Practice, Relevant (Y/N), Score (0-2), Finding/Notes."""
+    """Generates WAL_Assessment_Scores.csv with columns:
+    Pillar, Principle, Best Practice, Relevant (Y/N), Score (0-2), Finding/Notes."""
 
     def __init__(self):
         super().__init__("WAL_Assessment_Scores.csv")
@@ -32,32 +33,67 @@ class CSVReporter(BaseReporter):
         best_practice_scores = self._get_best_practice_scores(scored_assessment)
 
         rows: List[Dict[str, str]] = []
-        for bp in BEST_PRACTICES:
-            match = self._lookup_best_practice_score(
-                best_practice_scores,
-                bp["pillar"],
-                bp["best_practice"],
-            )
-            if match:
-                score_val = match.get("score", 0)
-                try:
-                    score_0_2 = min(2, max(0, float(score_val)))
-                except (TypeError, ValueError):
-                    score_0_2 = ""
-                relevant = "Y"
-                notes = str(match.get("finding_notes") or "")
-            else:
-                score_0_2 = ""
-                relevant = "N"
-                notes = ""
 
+        # Group by pillar using PILLAR_ORDER, then emit BPs
+        for pillar in PILLAR_ORDER:
+            display = self._pillar_display_name(pillar)
+            pillar_bps = self._get_bps_for_pillar(best_practice_scores, pillar)
+            if not pillar_bps:
+                continue
+
+            # Group by principle within each pillar
+            principles_seen: List[str] = []
+            for bp in pillar_bps:
+                p = bp.get("principle", "")
+                if p not in principles_seen:
+                    principles_seen.append(p)
+
+            for principle in principles_seen:
+                # Header row for this principle group
+                rows.append({
+                    "Pillar": display,
+                    "Principle": principle,
+                    "Best Practice": "",
+                    "Relevant (Y/N)": "",
+                    "Score (0-2)": "",
+                    "Finding/Notes": "",
+                })
+
+                for bp in pillar_bps:
+                    if bp.get("principle", "") != principle:
+                        continue
+                    score_val = bp.get("score", 0)
+                    notes = str(bp.get("finding_notes") or "")
+                    rows.append({
+                        "Pillar": "",
+                        "Principle": "",
+                        "Best Practice": bp.get("name", "Unknown"),
+                        "Relevant (Y/N)": "Y",
+                        "Score (0-2)": str(int(score_val)) if score_val is not None else "",
+                        "Finding/Notes": notes,
+                    })
+
+            # Empty separator between pillars
             rows.append({
-                "Pillar": bp["pillar"],
-                "Principle": bp["principle"],
-                "Best Practice": bp["best_practice"],
-                "Relevant": relevant,
-                "Score (0-2)": str(score_0_2) if score_0_2 != "" else "",
-                "Finding/Notes": notes,
+                "Pillar": "",
+                "Principle": "",
+                "Best Practice": "",
+                "Relevant (Y/N)": "",
+                "Score (0-2)": "",
+                "Finding/Notes": "",
+            })
+
+        # Also emit any BPs with pillars not in PILLAR_ORDER
+        remaining = [bp for bp in best_practice_scores
+                     if bp.get("pillar", "") not in PILLAR_ORDER]
+        for bp in remaining:
+            rows.append({
+                "Pillar": self._pillar_display_name(bp.get("pillar", "")),
+                "Principle": bp.get("principle", ""),
+                "Best Practice": bp.get("name", "Unknown"),
+                "Relevant (Y/N)": "Y",
+                "Score (0-2)": str(int(bp.get("score", 0))),
+                "Finding/Notes": str(bp.get("finding_notes") or ""),
             })
 
         with open(output_path, "w", newline="", encoding="utf-8") as f:
@@ -67,7 +103,7 @@ class CSVReporter(BaseReporter):
                     "Pillar",
                     "Principle",
                     "Best Practice",
-                    "Relevant",
+                    "Relevant (Y/N)",
                     "Score (0-2)",
                     "Finding/Notes",
                 ],

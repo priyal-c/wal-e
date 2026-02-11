@@ -56,18 +56,21 @@ def _progress_spinner(quiet: bool, stop_event: list) -> None:
 def _print_summary_table(pillar_scores: dict[str, float], overall: float, maturity: str, quiet: bool) -> None:
     if quiet:
         return
+    from wal_e.reporters.base import PILLAR_DISPLAY_NAMES, PILLAR_ORDER
     print(f"\n\n{C.BOLD}{C.GREEN}✓ Assessment Complete{C.RESET}\n")
     print(f"{C.BOLD}Pillar Scores{C.RESET}")
-    print("─" * 50)
-    for pillar, score in sorted(pillar_scores.items()):
+    print("─" * 58)
+    for pillar in PILLAR_ORDER:
+        score = pillar_scores.get(pillar, 0)
         pct = (score / 2.0) * 100 if score is not None else 0
+        display = PILLAR_DISPLAY_NAMES.get(pillar, pillar)
         bar_len = 20
         filled = int(bar_len * pct / 100)
         bar = f"{C.GREEN}█{C.RESET}" * filled + f"{C.DIM}░{C.RESET}" * (bar_len - filled)
-        print(f"  {pillar[:35]:<35} {bar} {pct:.0f}%")
-    print("─" * 50)
+        print(f"  {display[:40]:<40} {bar} {pct:.0f}%")
+    print("─" * 58)
     overall_pct = (overall / 2.0) * 100
-    print(f"  {C.BOLD}Overall{C.RESET}{'':<30} {overall_pct:.0f}%  ({maturity})")
+    print(f"  {C.BOLD}Overall{C.RESET}{'':<35} {overall_pct:.0f}%  ({maturity})")
     print()
 
 
@@ -99,10 +102,6 @@ def _scored_to_reporter_format(scored: Any) -> dict:
     from wal_e.framework.scoring import ScoredBestPractice
 
     pillar_scores = dict(scored.pillar_scores) if scored.pillar_scores else {}
-    alias = {"Security": "Security, Compliance & Privacy", "Performance": "Performance Efficiency", "Cost": "Cost Optimization"}
-    for k, v in list(pillar_scores.items()):
-        if k in alias and alias[k] not in pillar_scores:
-            pillar_scores[alias[k]] = v
 
     best_practice_scores = []
     for bp in scored.best_practice_scores:

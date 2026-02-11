@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Union
 
 from .base import (
-    BEST_PRACTICES,
     PILLAR_ORDER,
     AuditEntry,
     BaseReporter,
@@ -71,6 +70,8 @@ class HTMLDeckReporter(BaseReporter):
         css = self._get_css()
         slides: List[str] = []
 
+        overall_pct = self._score_to_pct(overall_score)
+
         # Slide 1: Title
         slides.append(f'''
 <section class="slide title-slide">
@@ -96,30 +97,32 @@ class HTMLDeckReporter(BaseReporter):
 </section>''')
 
         # Slide 3: Methodology
-        slides.append('''
+        bp_count = len(best_practice_scores)
+        slides.append(f'''
 <section class="slide">
   <h2>Methodology</h2>
   <p>Assessment against the <strong>Well-Architected Lakehouse Framework</strong> with:</p>
   <ul>
-    <li>7 pillars, 99 best practices</li>
-    <li>Read-only API/CLI data collection</li>
+    <li>7 pillars, {bp_count} best practices</li>
+    <li>Read-only API/CLI data collection (21 API calls)</li>
     <li>0-2 scoring per best practice</li>
     <li>Evidence-based findings</li>
   </ul>
 </section>''')
 
         # Slide 4: Executive Summary
-        badge_class = f"badge-{self._score_badge_color(overall_score)}"
+        badge_class = f"badge-{self._score_badge_color(overall_pct)}"
         pillar_table = ""
         for pillar in PILLAR_ORDER:
-            score = pillar_scores.get(pillar) or 0
-            bar_class = f"bar-{self._score_badge_color(score)}"
-            bar_pct = min(100, max(0, float(score)))
+            score = pillar_scores.get(pillar, 0)
+            pct = self._score_to_pct(score)
+            bar_class = f"bar-{self._score_badge_color(pct)}"
+            display = self._pillar_display_name(pillar)
             pillar_table += f'''
     <tr>
-      <td>{pillar}</td>
+      <td>{display}</td>
       <td>
-        <div class="score-bar"><span class="bar-fill {bar_class}" style="width:{bar_pct}%"></span><span class="bar-label">{self._format_score(score)}</span></div>
+        <div class="score-bar"><span class="bar-fill {bar_class}" style="width:{pct}%"></span><span class="bar-label">{pct:.0f}%</span></div>
       </td>
     </tr>'''
 
@@ -128,7 +131,7 @@ class HTMLDeckReporter(BaseReporter):
   <h2>Executive Summary</h2>
   <div class="metric-cards">
     <div class="metric-card">
-      <span class="metric-value {badge_class}">{self._format_score(overall_score)}</span>
+      <span class="metric-value {badge_class}">{overall_pct:.0f}%</span>
       <span class="metric-label">Overall Score</span>
     </div>
     <div class="metric-card">
@@ -160,10 +163,11 @@ class HTMLDeckReporter(BaseReporter):
         finding_items = ""
         for fp in sorted_findings:
             score_val = float(fp.get("score", 0))
-            # Scale 0-2 to 0-100 for badge color
-            badge = f"badge-{self._score_badge_color(score_val * 50)}"
+            pct = self._score_to_pct(score_val)
+            badge = f"badge-{self._score_badge_color(pct)}"
+            display = self._pillar_display_name(fp.get("pillar", ""))
             finding_items += f'''
-    <li><span class="badge {badge}">{score_val}</span> {fp.get("pillar", "")} - {fp.get("name", "")}</li>'''
+    <li><span class="badge {badge}">{score_val:.0f}</span> {display} — {fp.get("name", "")}</li>'''
         if not finding_items:
             finding_items = "<li><em>No findings recorded</em></li>"
 
@@ -174,29 +178,28 @@ class HTMLDeckReporter(BaseReporter):
   </ul>
 </section>''')
 
-        # Slides 7-10: Pillar Deep Dives (4 pillars)
-        for pillar in PILLAR_ORDER[:4]:
-            score = pillar_scores.get(pillar) or 0
-            badge_class = f"badge-{self._score_badge_color(score)}"
-            pillar_bps = [
-                bp for bp in best_practice_scores
-                if (bp.get("pillar") or "").strip() == pillar
-            ]
+        # Slides 7+: Pillar Deep Dives (all 7 pillars, 4 per slide max BPs)
+        for pillar in PILLAR_ORDER:
+            score = pillar_scores.get(pillar, 0)
+            pct = self._score_to_pct(score)
+            badge_class = f"badge-{self._score_badge_color(pct)}"
+            display = self._pillar_display_name(pillar)
+            pillar_bps = self._get_bps_for_pillar(best_practice_scores, pillar)
             items = "".join(
-                f'<li><span class="badge {badge_class}">{bp.get("score", "-")}</span> {bp.get("name", "")}</li>'
-                for bp in pillar_bps[:6]
+                f'<li><span class="badge badge-{self._score_badge_color(self._score_to_pct(bp.get("score", 0)))}">{bp.get("score", "-")}</span> {bp.get("name", "")}: {(bp.get("finding_notes", "") or "")[:80]}</li>'
+                for bp in pillar_bps[:8]
             )
             if not items:
                 items = "<li><em>No practices scored for this pillar</em></li>"
             slides.append(f'''
 <section class="slide">
-  <h2>{pillar}</h2>
-  <p class="pillar-score"><span class="badge {badge_class}">{self._format_score(score)}</span></p>
+  <h2>{display}</h2>
+  <p class="pillar-score"><span class="badge {badge_class}">{pct:.0f}%</span> ({score:.1f}/2.0)</p>
   <ul class="findings-list">{items}
   </ul>
 </section>''')
 
-        # Slide 11: Remediation Roadmap
+        # Remediation Roadmap
         slides.append('''
 <section class="slide">
   <h2>Remediation Roadmap</h2>
@@ -224,19 +227,19 @@ class HTMLDeckReporter(BaseReporter):
   </div>
 </section>''')
 
-        # Slide 12: Next Steps
+        # Next Steps
         slides.append('''
 <section class="slide">
   <h2>Next Steps</h2>
   <ol>
     <li>Prioritize findings based on business impact</li>
-    <li>Assign owners for Phase 1–4 initiatives</li>
+    <li>Assign owners for Phase 1\u20134 initiatives</li>
     <li>Schedule follow-up assessment in 90 days</li>
     <li>Leverage WAL-E for ongoing monitoring</li>
   </ol>
 </section>''')
 
-        # Slide 13: Thank You
+        # Thank You
         slides.append(f'''
 <section class="slide title-slide">
   <h1>Thank You</h1>
@@ -244,25 +247,7 @@ class HTMLDeckReporter(BaseReporter):
   <p class="meta">{workspace_host}</p>
 </section>''')
 
-        # Slides 14-16: Appendix slides
-        slides.append('''
-<section class="slide">
-  <h2>Appendix: Pillar Details</h2>
-  <p>Full assessment details available in WAL_Assessment_Readout.md and WAL_Assessment_Scores.csv.</p>
-</section>''')
-        slides.append('''
-<section class="slide">
-  <h2>Appendix: Audit Trail</h2>
-  <p>All API/CLI commands and outputs documented in WAL_Assessment_Audit_Report.md.</p>
-</section>''')
-        slides.append('''
-<section class="slide">
-  <h2>Questions?</h2>
-  <p>Contact your Databricks Solutions Architect for follow-up.</p>
-</section>''')
-
         body = "\n".join(slides)
-
         return f'''<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -315,9 +300,7 @@ body {
 .slide h3 { font-size: 1rem; margin-bottom: 0.25rem; }
 .slide ul, .slide ol { margin-left: 1.5rem; margin-top: 0.5rem; }
 .slide li { margin-bottom: 0.5rem; }
-.title-slide {
-  text-align: center;
-}
+.title-slide { text-align: center; }
 .title-slide h1 { font-size: 3rem; }
 .title-slide h2 { font-size: 1.5rem; color: var(--db-muted); font-weight: 400; }
 .title-slide .meta { color: var(--db-muted); font-size: 0.95rem; margin-top: 0.5rem; }
@@ -397,12 +380,30 @@ body {
         """Extract displayable metrics from collected_data."""
         metrics: Dict[str, str] = {}
         if not collected_data:
-            return {"Workspace": "N/A", "Data collected": "No"}
-        for key, val in collected_data.items():
-            if isinstance(val, list):
-                metrics[key] = str(len(val))
-            elif isinstance(val, dict):
-                metrics[key] = str(len(val))
-            else:
-                metrics[key] = str(val)
+            return {"Workspace": "N/A"}
+        gov = collected_data.get("GovernanceCollector", {})
+        compute = collected_data.get("ComputeCollector", {})
+        ops = collected_data.get("OperationsCollector", {})
+        sec = collected_data.get("SecurityCollector", {})
+
+        if gov.get("catalog_count"):
+            metrics["Catalogs"] = str(gov["catalog_count"])
+        if gov.get("external_location_count"):
+            metrics["External Locations"] = str(gov["external_location_count"])
+        if compute.get("cluster_count"):
+            metrics["Clusters"] = str(compute["cluster_count"])
+        if compute.get("warehouse_count"):
+            metrics["SQL Warehouses"] = str(compute["warehouse_count"])
+        if compute.get("policy_count"):
+            metrics["Cluster Policies"] = str(compute["policy_count"])
+        if ops.get("job_count"):
+            metrics["Jobs"] = str(ops["job_count"])
+        if ops.get("pipeline_count"):
+            metrics["DLT Pipelines"] = str(ops["pipeline_count"])
+        if ops.get("endpoint_count"):
+            metrics["Serving Endpoints"] = str(ops["endpoint_count"])
+        if ops.get("repo_count"):
+            metrics["Git Repos"] = str(ops["repo_count"])
+        if sec.get("ip_access_list_count"):
+            metrics["IP Access Lists"] = str(sec["ip_access_list_count"])
         return metrics
