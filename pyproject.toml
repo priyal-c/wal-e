@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wal-e"
+version = "0.1.0"
+description = "Well-Architected Lakehouse Evaluator"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+wal-e = "wal_e.cli:main"
+
+[project.optional-dependencies]
+pptx = ["python-pptx>=0.6.21"]
+mcp = ["fastmcp>=2.0.0"]
+
+[project.urls]
+Repository = "https://github.com/databricks-solutions/wal-e"
+
+[tool.setuptools.packages.find]
+where = ["src"]

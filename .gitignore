@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Assessment output (don't commit customer data)
+output/
+results/
+WAL_Assessment_*.md
+WAL_Assessment_*.csv
+WAL_Assessment_*.html
+WAL_Assessment_*.pptx
+
+# Credentials (never commit)
+.databrickscfg
+credentials.json
+token.json
+*.pem
+*.key
+
+# Environment files
+.env
+.env.local
