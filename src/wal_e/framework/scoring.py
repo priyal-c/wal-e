@@ -776,7 +776,7 @@ def _score_perf_006(data: dict) -> tuple[int, str]:
     """Larger clusters."""
     compute = _get(data, "ComputeCollector") or {}
     clusters = compute.get("clusters", []) or []
-    max_workers = max((c.get("autoscale", {}).get("max_workers") or c.get("num_workers") or 0 for c in clusters if isinstance(c, dict)), default=0)
+    max_workers = max(((c.get("autoscale") or {}).get("max_workers") or c.get("num_workers") or 0 for c in clusters if isinstance(c, dict)), default=0)
     if max_workers > 0:
         return 2, f"Clusters sized for scale (max {max_workers} workers). Right-size for workload."
     cluster_count = compute.get("cluster_count", 0) or len(clusters)
