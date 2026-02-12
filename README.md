@@ -105,6 +105,12 @@ wal-e assess --profile customer-workspace --output ./assessment-results
 
 # Generate specific output format
 wal-e assess --format pptx --format html --format csv
+
+# Set a custom timeout (in seconds, default: 600, use 0 for no limit)
+wal-e assess --timeout 0
+
+# Run in background (useful inside Claude Code or CI/CD)
+wal-e assess --run-in-background --output ./assessment-results
 ```
 
 ### Customer Collaboration Flow
@@ -158,17 +164,28 @@ Claude Code automatically reads `CLAUDE.md` from the project root and knows how 
 > Claude Code's Bash tool has a **maximum timeout of 10 minutes** (600,000ms) and defaults to 5 minutes.
 > WAL-E assessments typically complete in 2-5 minutes, but large workspaces or slow networks may take longer.
 >
-> **If the assessment times out inside Claude Code:**
+> WAL-E provides built-in options to handle this:
 >
-> 1. **Run directly in a separate terminal** (no timeout limit):
->    ```bash
->    wal-e assess --profile DEFAULT --output ./wal-e-assessment --format all
->    ```
-> 2. Then ask Claude Code to analyze the results:
->    > "Read the assessment results in ./wal-e-assessment and summarize the findings"
+> ```bash
+> # Option 1: Use the maximum WAL-E timeout (default: 600s = 10 min)
+> wal-e assess --timeout 600
 >
-> **Note:** `--run-in-background` and `--timeout` are **not** valid WAL-E flags.
-> Those are Claude Code Bash tool parameters, not WAL-E CLI options.
+> # Option 2: Disable timeout entirely
+> wal-e assess --timeout 0
+>
+> # Option 3: Run in background (returns immediately, writes results when done)
+> wal-e assess --run-in-background
+> # Check progress:
+> cat ./wal-e-assessment/.wal-e-cache/bg.status
+> # When complete, regenerate reports if needed:
+> wal-e report --input ./wal-e-assessment --format all
+>
+> # Option 4: Run directly in a separate terminal (no AI tool timeout)
+> wal-e assess --profile DEFAULT --output ./wal-e-assessment --format all
+> ```
+>
+> Then ask Claude Code to analyze the results:
+> > "Read the assessment results in ./wal-e-assessment and summarize the findings"
 
 ### As an MCP Server (AI Dev Kit)
 

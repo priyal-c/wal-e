@@ -133,18 +133,217 @@ def _save_cached_assessment(out_path: Path, result: Any, scored: Any) -> None:
         json.dump(asdict(scored), f, indent=2)
 
 
-def _run_assess(args: argparse.Namespace) -> int:
-    from wal_e.core.config import WalEConfig
-    from wal_e.core.engine import AssessmentEngine
+def _run_assess_foreground(args: argparse.Namespace, config: Any, engine: Any) -> int:
+    """Run the assessment in the foreground (default mode)."""
     from wal_e.framework.scoring import ScoringEngine
     from wal_e.reporters import AuditLogReporter, CSVReporter, HTMLDeckReporter, MarkdownReporter, PPTXDeckReporter
 
-    config = WalEConfig(profile_name=args.profile, output_dir=args.output, formats=args.format or ["md", "csv", "html", "pptx", "audit"])
-    engine = AssessmentEngine(config)
     stop_spinner: list[bool] = [False]
 
+    _print_banner(args.quiet)
+    if not args.quiet:
+        from wal_e.core.config import CLOUD_DISPLAY_NAMES
+        cloud_label = CLOUD_DISPLAY_NAMES.get(config.cloud_provider, config.cloud_provider)
+        cloud_color = {
+            "aws": C.YELLOW, "azure": C.BLUE, "gcp": C.CYAN,
+        }.get(config.cloud_provider, C.DIM)
+        print(f"{C.BLUE}Profile:{C.RESET} {args.profile}  {C.BLUE}Output:{C.RESET} {args.output}")
+        print(f"{C.BLUE}Cloud:{C.RESET}   {cloud_color}{cloud_label}{C.RESET}")
+        timeout_val = getattr(args, "timeout", 600)
+        if timeout_val and timeout_val > 0:
+            print(f"{C.BLUE}Timeout:{C.RESET} {timeout_val}s")
+        else:
+            print(f"{C.BLUE}Timeout:{C.RESET} none")
+        print()
+
+    import threading
+    t = threading.Thread(target=_progress_spinner, args=(args.quiet, stop_spinner))
+    t.daemon = True
+    t.start()
+
+    # Apply timeout if set
+    timeout_val = getattr(args, "timeout", 600)
+    timed_out = [False]
+
+    def _run_with_timeout():
+        try:
+            return engine.run_assessment()
+        except Exception as e:
+            return e
+
+    if timeout_val and timeout_val > 0:
+        result_holder: list = [None]
+        def _target():
+            result_holder[0] = _run_with_timeout()
+        worker = threading.Thread(target=_target)
+        worker.daemon = True
+        worker.start()
+        worker.join(timeout=timeout_val)
+        if worker.is_alive():
+            timed_out[0] = True
+            stop_spinner[0] = True
+            t.join(timeout=0.5)
+            print(f"\n{C.RED}Assessment timed out after {timeout_val}s.{C.RESET}")
+            print(f"{C.YELLOW}Tip:{C.RESET} Use {C.BOLD}--timeout 0{C.RESET} for no timeout, or run in a separate terminal.")
+            return 1
+        result = result_holder[0]
+        if isinstance(result, Exception):
+            raise result
+    else:
+        result = engine.run_assessment()
+
+    stop_spinner[0] = True
+    t.join(timeout=0.5)
+
+    if result.errors and not args.quiet:
+        for err in result.errors:
+            print(f"{C.YELLOW}Warning:{C.RESET} {err}")
+
+    scoring_engine = ScoringEngine()
+    scored = scoring_engine.score_all(result.collected_data, config.workspace_host or "Unknown")
+    reporter_format = _scored_to_reporter_format(scored)
+    audit_entries = _convert_audit_entries(result.raw_responses)
+
+    out_path = Path(args.output)
+    out_path.mkdir(parents=True, exist_ok=True)
+    formats = args.format or ["md", "csv", "html", "pptx", "audit"]
+    if "all" in formats:
+        formats = ["md", "csv", "html", "pptx", "audit"]
+
+    reporters_map = {"md": MarkdownReporter(), "csv": CSVReporter(), "html": HTMLDeckReporter(), "pptx": PPTXDeckReporter(), "audit": AuditLogReporter()}
+    generated: list[str] = []
+    for fmt in formats:
+        r = reporters_map.get(fmt)
+        if r:
+            try:
+                p = r.generate(reporter_format, result.collected_data, audit_entries, out_path)
+                generated.append(str(p))
+            except Exception as e:
+                if not args.quiet:
+                    print(f"{C.RED}Failed to generate {fmt}:{C.RESET} {e}")
+
+    _save_cached_assessment(out_path, result, scored)
+    _print_summary_table(scored.pillar_scores, scored.overall_score, scored.maturity_level, args.quiet)
+    if not args.quiet and generated:
+        print(f"{C.BOLD}Reports written to:{C.RESET}")
+        for g in generated:
+            print(f"  {C.DIM}{g}{C.RESET}")
+        print()
+    return 0
+
+
+def _run_assess_background(args: argparse.Namespace, config: Any, engine: Any) -> int:
+    """Fork the assessment into a background process and return immediately."""
+    import multiprocessing
+    import os
+
+    out_path = Path(args.output)
+    out_path.mkdir(parents=True, exist_ok=True)
+    pid_file = out_path / ".wal-e-cache" / "bg.pid"
+    pid_file.parent.mkdir(parents=True, exist_ok=True)
+    status_file = out_path / ".wal-e-cache" / "bg.status"
+
+    def _background_worker(profile: str, output: str, formats_list: list, host: str) -> None:
+        """Runs in a child process — no TTY output."""
+        import json as _json
+        from wal_e.core.config import WalEConfig as _Cfg
+        from wal_e.core.engine import AssessmentEngine as _Eng
+        from wal_e.framework.scoring import ScoringEngine as _Sc
+        from wal_e.reporters import AuditLogReporter, CSVReporter, HTMLDeckReporter, MarkdownReporter, PPTXDeckReporter
+
+        _out = Path(output)
+        _out.mkdir(parents=True, exist_ok=True)
+        _status = _out / ".wal-e-cache" / "bg.status"
+
+        try:
+            _status.write_text("running")
+            _cfg = _Cfg(profile_name=profile, output_dir=output)
+            _eng = _Eng(_cfg)
+            result = _eng.run_assessment()
+
+            sc_engine = _Sc()
+            scored = sc_engine.score_all(result.collected_data, _cfg.workspace_host or host)
+
+            reporter_format = {
+                "pillar_scores": dict(scored.pillar_scores) if scored.pillar_scores else {},
+                "best_practice_scores": [
+                    {"name": bp.name, "pillar": bp.pillar, "principle": bp.principle,
+                     "score": float(bp.score), "finding_notes": bp.finding_notes}
+                    for bp in scored.best_practice_scores
+                ],
+                "overall_score": scored.overall_score,
+                "maturity_level": scored.maturity_level,
+                "assessment_date": scored.assessment_date,
+                "workspace_host": scored.workspace_host or "Unknown",
+                "cloud_provider": getattr(scored, "cloud_provider", "") or "unknown",
+            }
+
+            audit_entries = []
+            for _cname, audit_list in result.raw_responses.items():
+                for ae in audit_list:
+                    if hasattr(ae, "command"):
+                        cmd_str = " ".join(ae.command) if isinstance(ae.command, list) else str(ae.command)
+                        audit_entries.append({"command": cmd_str, "output": getattr(ae, "raw_output", ""), "timestamp": "", "duration": getattr(ae, "duration_seconds", 0)})
+
+            fmts = formats_list or ["md", "csv", "html", "pptx", "audit"]
+            if "all" in fmts:
+                fmts = ["md", "csv", "html", "pptx", "audit"]
+            reporters_map = {"md": MarkdownReporter(), "csv": CSVReporter(), "html": HTMLDeckReporter(), "pptx": PPTXDeckReporter(), "audit": AuditLogReporter()}
+            for fmt in fmts:
+                r = reporters_map.get(fmt)
+                if r:
+                    try:
+                        r.generate(reporter_format, result.collected_data, audit_entries, _out)
+                    except Exception:
+                        pass
+
+            # Save cache
+            cache_dir = _out / ".wal-e-cache"
+            cache_dir.mkdir(exist_ok=True)
+            with open(cache_dir / "collected_data.json", "w") as f:
+                _json.dump(result.collected_data, f, default=str, indent=2)
+            with open(cache_dir / "scored_assessment.json", "w") as f:
+                from dataclasses import asdict as _asdict
+                _json.dump(_asdict(scored), f, indent=2)
+            with open(cache_dir / "audit_entries.json", "w") as f:
+                _json.dump(audit_entries, f, indent=2)
+
+            _status.write_text("complete")
+        except Exception as e:
+            _status.write_text(f"error: {e}")
+
+    _print_banner(args.quiet)
+    if not args.quiet:
+        from wal_e.core.config import CLOUD_DISPLAY_NAMES
+        cloud_label = CLOUD_DISPLAY_NAMES.get(config.cloud_provider, config.cloud_provider)
+        print(f"{C.BLUE}Profile:{C.RESET} {args.profile}  {C.BLUE}Cloud:{C.RESET} {cloud_label}")
+
+    p = multiprocessing.Process(
+        target=_background_worker,
+        args=(args.profile, args.output, args.format, config.workspace_host or "Unknown"),
+        daemon=False,
+    )
+    p.start()
+    pid_file.write_text(str(p.pid))
+
+    print(f"\n{C.GREEN}Assessment running in background (PID: {p.pid}){C.RESET}")
+    print(f"  Output directory: {C.CYAN}{args.output}{C.RESET}")
+    print(f"\n{C.BOLD}Check progress:{C.RESET}")
+    print(f"  cat {args.output}/.wal-e-cache/bg.status")
+    print(f"\n{C.BOLD}When complete, regenerate reports:{C.RESET}")
+    print(f"  wal-e report --input {args.output} --format all")
+    print()
+    return 0
+
+
+def _run_assess(args: argparse.Namespace) -> int:
+    from wal_e.core.config import WalEConfig
+    from wal_e.core.engine import AssessmentEngine
+
+    config = WalEConfig(profile_name=args.profile, output_dir=args.output, formats=args.format or ["md", "csv", "html", "pptx", "audit"])
+    engine = AssessmentEngine(config)
+
     def _on_sigint(*_args: Any) -> None:
-        stop_spinner[0] = True
         print(f"\n\n{C.YELLOW}Interrupted. Exiting gracefully...{C.RESET}")
         sys.exit(130)
 
@@ -152,62 +351,10 @@ def _run_assess(args: argparse.Namespace) -> int:
 
     if args.interactive:
         return _interactive_assess(args, config, engine)
+    elif getattr(args, "run_in_background", False):
+        return _run_assess_background(args, config, engine)
     else:
-        _print_banner(args.quiet)
-        if not args.quiet:
-            from wal_e.core.config import CLOUD_DISPLAY_NAMES
-            cloud_label = CLOUD_DISPLAY_NAMES.get(config.cloud_provider, config.cloud_provider)
-            cloud_color = {
-                "aws": C.YELLOW, "azure": C.BLUE, "gcp": C.CYAN,
-            }.get(config.cloud_provider, C.DIM)
-            print(f"{C.BLUE}Profile:{C.RESET} {args.profile}  {C.BLUE}Output:{C.RESET} {args.output}")
-            print(f"{C.BLUE}Cloud:{C.RESET}   {cloud_color}{cloud_label}{C.RESET}\n")
-
-        import threading
-        t = threading.Thread(target=_progress_spinner, args=(args.quiet, stop_spinner))
-        t.daemon = True
-        t.start()
-        try:
-            result = engine.run_assessment()
-        finally:
-            stop_spinner[0] = True
-            t.join(timeout=0.5)
-
-        if result.errors and not args.quiet:
-            for err in result.errors:
-                print(f"{C.YELLOW}Warning:{C.RESET} {err}")
-
-        scoring_engine = ScoringEngine()
-        scored = scoring_engine.score_all(result.collected_data, config.workspace_host or "Unknown")
-        reporter_format = _scored_to_reporter_format(scored)
-        audit_entries = _convert_audit_entries(result.raw_responses)
-
-        out_path = Path(args.output)
-        out_path.mkdir(parents=True, exist_ok=True)
-        formats = args.format or ["md", "csv", "html", "pptx", "audit"]
-        if "all" in formats:
-            formats = ["md", "csv", "html", "pptx", "audit"]
-
-        reporters_map = {"md": MarkdownReporter(), "csv": CSVReporter(), "html": HTMLDeckReporter(), "pptx": PPTXDeckReporter(), "audit": AuditLogReporter()}
-        generated: list[str] = []
-        for fmt in formats:
-            r = reporters_map.get(fmt)
-            if r:
-                try:
-                    p = r.generate(reporter_format, result.collected_data, audit_entries, out_path)
-                    generated.append(str(p))
-                except Exception as e:
-                    if not args.quiet:
-                        print(f"{C.RED}Failed to generate {fmt}:{C.RESET} {e}")
-
-        _save_cached_assessment(out_path, result, scored)
-        _print_summary_table(scored.pillar_scores, scored.overall_score, scored.maturity_level, args.quiet)
-        if not args.quiet and generated:
-            print(f"{C.BOLD}Reports written to:{C.RESET}")
-            for g in generated:
-                print(f"  {C.DIM}{g}{C.RESET}")
-            print()
-    return 0
+        return _run_assess_foreground(args, config, engine)
 
 
 def _interactive_assess(args: argparse.Namespace, config: Any, engine: Any) -> bool:
@@ -465,6 +612,13 @@ def main() -> int:
     assess_parser.add_argument("--format", action="append", choices=["md", "csv", "html", "pptx", "audit", "all"], default=None, help="Output formats (default: all)")
     assess_parser.add_argument("--interactive", action="store_true", help="Interactive mode with step-by-step prompts")
     assess_parser.add_argument("--quiet", action="store_true", help="Suppress progress output")
+    assess_parser.add_argument("--timeout", type=int, default=600, metavar="SECONDS",
+                               help="Maximum time in seconds for the assessment to complete (default: 600 = 10 min). "
+                                    "Use 0 for no timeout. Useful when running inside Claude Code or other AI tools.")
+    assess_parser.add_argument("--run-in-background", action="store_true",
+                               help="Run assessment in background and return immediately. "
+                                    "Results are written to the output directory when complete. "
+                                    "Use 'wal-e report' to check/regenerate reports from cached data.")
     assess_parser.set_defaults(func=_run_assess)
 
     validate_parser = subparsers.add_parser("validate", help="Validate workspace access")
