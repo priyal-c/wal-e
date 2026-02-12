@@ -233,7 +233,10 @@ SKILLEOF
   success "Claude Code skill installed: $SKILL_DIR/SKILL.md"
   echo ""
   echo -e "  ${BOLD}How to use in Claude Code:${RESET}"
-  echo -e "    ${DIM}/wal-e assess my Databricks workspace and generate a readout deck${RESET}"
+  echo -e "    1. Open Claude Code inside the wal-e/ project directory"
+  echo -e "    2. Ask naturally (no slash command needed):"
+  echo -e "       ${DIM}\"Run a WAL-E assessment on my Databricks workspace\"${RESET}"
+  echo -e "    Claude Code reads CLAUDE.md from the project root automatically."
   echo ""
 }
 

@@ -136,8 +136,10 @@ WAL-E integrates natively with the [Databricks AI Dev Kit](https://github.com/da
 ./install.sh --cursor
 ```
 
-Then in Cursor, simply ask:
+Then in Cursor Agent, simply ask:
 > "Run a Well-Architected Lakehouse assessment on my workspace"
+
+Cursor reads the `.cursor/rules/wal-e-assessment.md` rule file automatically.
 
 ### As a Claude Code Skill
 
@@ -146,8 +148,10 @@ Then in Cursor, simply ask:
 ./install.sh --claude
 ```
 
-Then in Claude Code:
-> "/wal-e assess my Databricks workspace and generate a readout deck"
+Then open Claude Code inside the `wal-e/` directory and ask naturally (no slash command):
+> "Run a WAL-E assessment on my Databricks workspace and generate a readout deck"
+
+Claude Code automatically reads `CLAUDE.md` from the project root and knows how to use WAL-E.
 
 ### As an MCP Server (AI Dev Kit)
 
