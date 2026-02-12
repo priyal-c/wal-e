@@ -153,22 +153,54 @@ Then open Claude Code inside the `wal-e/` directory and ask naturally (no slash 
 
 Claude Code automatically reads `CLAUDE.md` from the project root and knows how to use WAL-E.
 
+> **Important: Claude Code Timeout**
+>
+> Claude Code's Bash tool has a **maximum timeout of 10 minutes** (600,000ms) and defaults to 5 minutes.
+> WAL-E assessments typically complete in 2-5 minutes, but large workspaces or slow networks may take longer.
+>
+> **If the assessment times out inside Claude Code:**
+>
+> 1. **Run directly in a separate terminal** (no timeout limit):
+>    ```bash
+>    wal-e assess --profile DEFAULT --output ./wal-e-assessment --format all
+>    ```
+> 2. Then ask Claude Code to analyze the results:
+>    > "Read the assessment results in ./wal-e-assessment and summarize the findings"
+>
+> **Note:** `--run-in-background` and `--timeout` are **not** valid WAL-E flags.
+> Those are Claude Code Bash tool parameters, not WAL-E CLI options.
+
 ### As an MCP Server (AI Dev Kit)
 
+Register WAL-E as an MCP server so AI assistants can call assessment tools directly:
+
 ```bash
-# Register WAL-E as an MCP tool
+# Option 1: Use the installer
+./install.sh --mcp
+
+# Option 2: Register manually with Claude Code
 claude mcp add-json wal-e "{
-  \"command\": \"python\",
+  \"command\": \"python3\",
   \"args\": [\"$(pwd)/mcp/server.py\"]
 }"
+
+# Option 3: Databricks LLM wrapper
+llm agent configure mcp
+# Then add: {"wal-e": {"command": "python3", "args": ["<path-to-wal-e>/mcp/server.py"]}}
 ```
 
-Available MCP tools:
-- `wal_e_assess` - Run full assessment
-- `wal_e_collect` - Collect workspace data
-- `wal_e_score` - Score against framework
-- `wal_e_report` - Generate reports
-- `wal_e_validate` - Validate workspace access
+After registering, restart Claude Code. The following MCP tools become available:
+
+| Tool | Description |
+|------|-------------|
+| `wal_e_assess` | Run full assessment (collect + score + report) |
+| `wal_e_collect` | Collect workspace data only (no scoring) |
+| `wal_e_score` | Score from cached collected data |
+| `wal_e_report` | Generate reports from cached data (md/csv/html/pptx/audit) |
+| `wal_e_validate` | Validate workspace access and connectivity |
+
+Then ask naturally:
+> "Use wal_e_assess to run a full assessment on my DEFAULT workspace"
 
 ---
 
