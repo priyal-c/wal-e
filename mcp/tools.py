@@ -77,6 +77,7 @@ def wal_e_assess(profile: str = "DEFAULT", output_dir: str = "./wal-e-assessment
             "success": True,
             "profile": profile,
             "output_dir": output_dir,
+            "cloud_provider": getattr(scored, "cloud_provider", "unknown"),
             "pillar_scores": scored.pillar_scores,
             "overall_score": scored.overall_score,
             "maturity_level": scored.maturity_level,
@@ -193,6 +194,7 @@ def wal_e_report(assessment_path: str, format: str = "md") -> dict:
             "maturity_level": scored_dict.get("maturity_level", "Not Assessed"),
             "assessment_date": scored_dict.get("assessment_date", ""),
             "workspace_host": scored_dict.get("workspace_host", "Unknown"),
+            "cloud_provider": scored_dict.get("cloud_provider", "unknown"),
         }
 
         reporters = {"md": MarkdownReporter(), "csv": CSVReporter(), "html": HTMLDeckReporter(), "pptx": PPTXDeckReporter(), "audit": AuditLogReporter()}
