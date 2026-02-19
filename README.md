@@ -54,7 +54,7 @@
 - **SA-Guided** - Your Databricks SA walks you through every step via screen share or call
 - **Automated Data Collection** - 23+ read-only API/CLI queries across governance, security, compute, operations, and cost
 - **Cloud-Aware** - Auto-detects AWS, Azure, or GCP and tailors all scoring and recommendations
-- **129 Best Practices** - Scored 0-2 across 7 pillars of the Well-Architected Framework
+- **140 Best Practices** - 129 standard + 11 deep scan, scored 0-2 across 7 pillars
 - **Multiple Output Formats** - Markdown, executive deck (PPTX), scored CSV, HTML presentation, and full audit trail
 - **Zero Workspace Modification** - 100% read-only; no writes, no side effects
 - **AI-Native** - Works as a Cursor skill, Claude Code skill, or MCP tool
@@ -134,7 +134,7 @@ The assessment generates these files in the output directory:
 | File | Description |
 |------|-------------|
 | `WAL_Assessment_Readout.md` | Detailed assessment report (all 7 pillars) |
-| `WAL_Assessment_Scores.csv` | 129 best practices with scores and notes |
+| `WAL_Assessment_Scores.csv` | 140 best practices with scores and notes |
 | `WAL_Assessment_Presentation.pptx` | Executive readout deck (importable to Google Slides) |
 | `WAL_Assessment_Presentation.html` | Browser-based presentation |
 | `WAL_Assessment_Audit_Report.md` | Complete evidence trail of all API calls |
@@ -203,6 +203,37 @@ wal-e assess --run-in-background --output ./assessment-results
 # Re-generate reports from cached assessment data
 wal-e report --input ./my-assessment --format all
 ```
+
+### Deep Scan (System Tables)
+
+The standard assessment uses 21 read-only API calls. For a deeper analysis, WAL-E can also query **Databricks system tables** to assess operational reality — actual cost trends, cluster idle time, query failure rates, job success rates, and security audit events.
+
+```bash
+# Deep scan requires a running SQL warehouse and SELECT grants on system.* schemas
+wal-e assess --profile wal-assessment --deep --warehouse-id <YOUR_WAREHOUSE_ID>
+```
+
+Deep scan adds **11 additional best practices** (140 total) covering:
+
+| Area | What it reveals | System Table |
+|------|----------------|-------------|
+| **Cost** | Idle cluster waste, DBU spend trends, concentration risk | `system.billing.usage`, `system.compute.clusters` |
+| **Performance** | Query failure rate, slow query prevalence, warehouse utilization | `system.query.history` |
+| **Reliability** | Job success rate, recurring job failures | `system.lakeflow.job_run_timeline` |
+| **Security** | Failed login monitoring, permission change audit | `system.access.audit` |
+| **Operations** | Cluster utilization efficiency (24/7 clusters) | `system.compute.clusters` |
+
+**Prerequisites for deep scan:**
+
+```sql
+-- Customer's account admin runs these in a SQL warehouse:
+GRANT SELECT ON SCHEMA system.billing TO `your-admin-user@company.com`;
+GRANT SELECT ON SCHEMA system.compute TO `your-admin-user@company.com`;
+GRANT SELECT ON SCHEMA system.query TO `your-admin-user@company.com`;
+GRANT SELECT ON SCHEMA system.access TO `your-admin-user@company.com`;
+```
+
+Without `--deep`, the 11 system-table BPs score as "partial" with a note explaining that deep scan is needed. This way the standard assessment still works perfectly with just the API.
 
 ---
 
@@ -317,12 +348,12 @@ WAL-E needs **read-only** access to the workspace. It makes **21 HTTP GET API ca
 |---|--------|:--------------:|-------------|
 | 1 | Data & AI Governance | 15 | Unity Catalog, metadata, lineage, data quality |
 | 2 | Interoperability & Usability | 14 | Open formats, IaC, serverless, self-service |
-| 3 | Operational Excellence | 23 | CI/CD, MLOps, monitoring, environment isolation |
-| 4 | Security, Compliance & Privacy | 12 | IAM, SSO/SCIM, encryption, network, VPC |
-| 5 | Reliability | 19 | ACID, auto-scaling, DR, backups |
-| 6 | Performance Efficiency | 25 | Serverless, data layout, liquid clustering |
-| 7 | Cost Optimization | 20 | Spot/preemptible, reserved, tagging, budgets |
-| | **Total** | **129** | |
+| 3 | Operational Excellence | 24 | CI/CD, MLOps, monitoring, cluster utilization* |
+| 4 | Security, Compliance & Privacy | 14 | IAM, SSO/SCIM, encryption, login audit*, permissions* |
+| 5 | Reliability | 21 | ACID, auto-scaling, DR, job success rate*, recurring failures* |
+| 6 | Performance Efficiency | 28 | Serverless, data layout, query failure rate*, slow queries* |
+| 7 | Cost Optimization | 23 | Spot/preemptible, idle waste*, cost trends*, concentration* |
+| | **Total** | **140** | *\* = deep scan (system tables)* |
 
 ---
 

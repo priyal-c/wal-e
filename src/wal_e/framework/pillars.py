@@ -1,7 +1,7 @@
 """
 WAL-E Framework: Well-Architected Lakehouse pillars and best practices.
 
-Defines all 7 pillars with 128 best practices from the Databricks
+Defines all 7 pillars with 140 best practices from the Databricks
 Well-Architected Lakehouse Framework plus Databricks published cheat sheets
 and best-practice articles (docs.databricks.com/aws/en/getting-started/best-practices).
 """
@@ -449,6 +449,14 @@ def _get_all_pillars() -> list[Pillar]:
                 principle="Monitoring and capacity",
                 domains=["Clusters", "Security", "Patching"],
             ),
+            # --- DEEP SCAN: system table-backed best practices ---
+            BestPractice(
+                id="ops-024",
+                name="Cluster utilization efficiency (deep)",
+                pillar="Operational Excellence",
+                principle="Monitoring and capacity",
+                domains=["System Tables", "Compute", "Utilization", "Deep"],
+            ),
         ],
     )
 
@@ -546,6 +554,21 @@ def _get_all_pillars() -> list[Pillar]:
                 pillar="Security",
                 principle="Data protection",
                 domains=["DBFS", "Storage", "Data Protection"],
+            ),
+            # --- DEEP SCAN: system table-backed best practices ---
+            BestPractice(
+                id="sec-013",
+                name="Failed login monitoring (deep)",
+                pillar="Security",
+                principle="Monitoring and compliance",
+                domains=["System Tables", "Audit", "Auth Failures", "Deep"],
+            ),
+            BestPractice(
+                id="sec-014",
+                name="Permission change audit (deep)",
+                pillar="Security",
+                principle="Monitoring and compliance",
+                domains=["System Tables", "Audit", "Permissions", "Deep"],
             ),
         ],
     )
@@ -693,6 +716,21 @@ def _get_all_pillars() -> list[Pillar]:
                 pillar="Reliability",
                 principle="Managed services",
                 domains=["Service Principals", "Jobs", "Reliability"],
+            ),
+            # --- DEEP SCAN: system table-backed best practices ---
+            BestPractice(
+                id="rel-020",
+                name="Job success rate (deep)",
+                pillar="Reliability",
+                principle="Resilient workloads",
+                domains=["System Tables", "Jobs", "Success Rate", "Deep"],
+            ),
+            BestPractice(
+                id="rel-021",
+                name="Recurring job failures (deep)",
+                pillar="Reliability",
+                principle="Resilient workloads",
+                domains=["System Tables", "Jobs", "Recurring Failures", "Deep"],
             ),
         ],
     )
@@ -883,6 +921,28 @@ def _get_all_pillars() -> list[Pillar]:
                 principle="Scaling and serverless",
                 domains=["Access Mode", "Compute", "UC"],
             ),
+            # --- DEEP SCAN: system table-backed best practices ---
+            BestPractice(
+                id="perf-026",
+                name="Query failure rate (deep)",
+                pillar="Performance",
+                principle="Monitoring and tuning",
+                domains=["System Tables", "Query", "Failure Rate", "Deep"],
+            ),
+            BestPractice(
+                id="perf-027",
+                name="Slow query prevalence (deep)",
+                pillar="Performance",
+                principle="Monitoring and tuning",
+                domains=["System Tables", "Query", "Slow Queries", "Deep"],
+            ),
+            BestPractice(
+                id="perf-028",
+                name="Warehouse utilization balance (deep)",
+                pillar="Performance",
+                principle="Scaling and serverless",
+                domains=["System Tables", "Warehouse", "Utilization", "Deep"],
+            ),
         ],
     )
 
@@ -1036,6 +1096,28 @@ def _get_all_pillars() -> list[Pillar]:
                 pillar="Cost",
                 principle="Cost monitoring",
                 domains=["Budget", "Alerts", "Cost Monitoring"],
+            ),
+            # --- DEEP SCAN: system table-backed best practices ---
+            BestPractice(
+                id="cost-021",
+                name="Idle cluster waste (deep)",
+                pillar="Cost",
+                principle="Eliminate waste",
+                domains=["System Tables", "Compute", "Idle", "Deep"],
+            ),
+            BestPractice(
+                id="cost-022",
+                name="Cost trend analysis (deep)",
+                pillar="Cost",
+                principle="Cost monitoring",
+                domains=["System Tables", "Billing", "Trend", "Deep"],
+            ),
+            BestPractice(
+                id="cost-023",
+                name="DBU concentration risk (deep)",
+                pillar="Cost",
+                principle="Cost monitoring",
+                domains=["System Tables", "Billing", "Concentration", "Deep"],
             ),
         ],
     )

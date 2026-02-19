@@ -57,6 +57,8 @@ class WalEConfig:
     token: str = ""
     output_dir: str = "./assessment-results"
     cloud_provider: str = ""  # auto-detected: "aws", "azure", "gcp", "unknown"
+    deep_scan: bool = False  # --deep: include system tables queries
+    warehouse_id: str = ""  # SQL warehouse ID for system table queries
     formats: list[Literal["md", "csv", "html", "pptx", "audit"]] = field(
         default_factory=lambda: ["md", "audit"]
     )

@@ -6,6 +6,7 @@ from wal_e.collectors.compute import ComputeCollector
 from wal_e.collectors.governance import GovernanceCollector
 from wal_e.collectors.operations import OperationsCollector
 from wal_e.collectors.security import SecurityCollector
+from wal_e.collectors.system_tables import SystemTablesCollector
 from wal_e.collectors.workspace import WorkspaceCollector
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "GovernanceCollector",
     "OperationsCollector",
     "SecurityCollector",
+    "SystemTablesCollector",
     "WorkspaceCollector",
 ]

@@ -13,6 +13,7 @@ from wal_e.collectors import (
     GovernanceCollector,
     OperationsCollector,
     SecurityCollector,
+    SystemTablesCollector,
     WorkspaceCollector,
 )
 from wal_e.collectors.base import AuditEntry, BaseCollector
@@ -43,6 +44,10 @@ class AssessmentEngine:
             OperationsCollector(config.profile_name),
             WorkspaceCollector(config.profile_name),
         ]
+        if config.deep_scan and config.warehouse_id:
+            self._collectors.append(
+                SystemTablesCollector(config.profile_name, config.warehouse_id)
+            )
 
     def run_assessment(self) -> AssessmentResult:
         """

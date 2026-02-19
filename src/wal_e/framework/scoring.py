@@ -1364,6 +1364,216 @@ def _score_cost_020(data: dict) -> tuple[int, str]:
 
 
 # ---------------------------------------------------------------------------
+# Deep Scan (System Tables) scoring functions
+# These return score 1 with a "Requires --deep" note when system table data
+# is unavailable, allowing graceful degradation in standard mode.
+# ---------------------------------------------------------------------------
+
+
+def _st(data: dict) -> dict:
+    """Get SystemTablesCollector findings, or empty dict if not available."""
+    return _get(data, "SystemTablesCollector") or {}
+
+
+def _st_available(st: dict, section: str) -> bool:
+    """Check if a system table section collected data successfully."""
+    return st.get("available", False) and isinstance(st.get(section), dict) and st[section].get("available", False)
+
+
+def _score_cost_021(data: dict) -> tuple[int, str]:
+    """Idle cluster waste (deep): checks for clusters running without jobs."""
+    st = _st(data)
+    if not _st_available(st, "compute_history"):
+        return 1, "Requires --deep scan with system tables. Cannot assess idle cluster waste from API alone."
+    ch = st["compute_history"]
+    idle = ch.get("idle_clusters", [])
+    idle_hours = ch.get("idle_hours_30d", 0)
+    if not idle:
+        return 2, "No idle clusters detected in the last 30 days. Compute resources well utilized."
+    if idle_hours > 100:
+        names = ", ".join(c.get("cluster_name", c.get("cluster_id", "?"))[:30] for c in idle[:3])
+        return 0, f"{len(idle)} idle clusters totaling {idle_hours:.0f}h in 30d. Top: {names}. Terminate or auto-stop."
+    return 1, f"{len(idle)} clusters with some idle time ({idle_hours:.0f}h total). Review auto-termination settings."
+
+
+def _score_cost_022(data: dict) -> tuple[int, str]:
+    """Cost trend analysis (deep): checks if DBU spend is trending up."""
+    st = _st(data)
+    if not _st_available(st, "billing"):
+        return 1, "Requires --deep scan with system tables. Cannot assess cost trends from API alone."
+    billing = st["billing"]
+    trend = billing.get("trend_pct_change")
+    total = billing.get("total_dbus_30d", 0)
+    if trend is None:
+        return 1, f"Billing data available ({total:.0f} DBUs/30d) but insufficient history for trend analysis."
+    if trend > 20:
+        return 0, f"DBU spend increased {trend}% (last week vs first week of 30d window). Total: {total:.0f} DBUs. Investigate."
+    if trend > 5:
+        return 1, f"DBU spend up {trend}% over 30 days ({total:.0f} DBUs total). Monitor closely."
+    return 2, f"DBU spend stable or declining ({trend:+.1f}% change, {total:.0f} DBUs/30d)."
+
+
+def _score_cost_023(data: dict) -> tuple[int, str]:
+    """DBU concentration risk (deep): checks if spend is concentrated on few clusters."""
+    st = _st(data)
+    if not _st_available(st, "billing"):
+        return 1, "Requires --deep scan with system tables. Cannot assess concentration risk from API alone."
+    billing = st["billing"]
+    top = billing.get("top_cost_clusters", [])
+    total = billing.get("total_dbus_30d", 0)
+    if not top or total == 0:
+        return 1, "Billing data available but no per-cluster breakdown found."
+    top1_dbus = float(top[0].get("total_dbus") or 0)
+    top1_pct = (top1_dbus / total) * 100 if total > 0 else 0
+    if top1_pct > 50:
+        return 0, f"Single cluster consumes {top1_pct:.0f}% of total DBUs. High concentration risk."
+    if top1_pct > 30:
+        return 1, f"Top cluster uses {top1_pct:.0f}% of DBUs. Consider distributing workloads."
+    return 2, f"DBU spend well distributed across clusters (top cluster: {top1_pct:.0f}%)."
+
+
+def _score_perf_026(data: dict) -> tuple[int, str]:
+    """Query failure rate (deep): checks SQL query failure rate from system tables."""
+    st = _st(data)
+    if not _st_available(st, "query_history"):
+        return 1, "Requires --deep scan with system tables. Cannot assess query failure rate from API alone."
+    qh = st["query_history"]
+    total = qh.get("total_queries_30d", 0)
+    rate = qh.get("failure_rate_pct", 0)
+    if total == 0:
+        return 1, "No query history found in the last 30 days."
+    if rate > 10:
+        return 0, f"Query failure rate is {rate}% ({qh.get('failed_queries_30d', 0)} of {total} queries). Investigate failing queries."
+    if rate > 2:
+        return 1, f"Query failure rate is {rate}% ({total} total queries/30d). Room for improvement."
+    return 2, f"Low query failure rate ({rate}%) across {total} queries in 30 days."
+
+
+def _score_perf_027(data: dict) -> tuple[int, str]:
+    """Slow query prevalence (deep): checks how many queries take >5 minutes."""
+    st = _st(data)
+    if not _st_available(st, "query_history"):
+        return 1, "Requires --deep scan with system tables. Cannot assess slow queries from API alone."
+    qh = st["query_history"]
+    total = qh.get("total_queries_30d", 0)
+    slow = qh.get("slow_queries_30d", 0)
+    p95 = qh.get("p95_duration_ms", 0)
+    if total == 0:
+        return 1, "No query history found in the last 30 days."
+    slow_pct = (slow / total) * 100 if total > 0 else 0
+    if slow_pct > 5:
+        return 0, f"{slow} queries (>{slow_pct:.1f}%) took >5 min. P95 latency: {p95/1000:.1f}s. Optimize query patterns."
+    if slow_pct > 1:
+        return 1, f"{slow} slow queries ({slow_pct:.1f}%). P95: {p95/1000:.1f}s. Consider tuning."
+    return 2, f"Only {slow} queries (of {total}) exceeded 5 min. P95: {p95/1000:.1f}s. Performance healthy."
+
+
+def _score_perf_028(data: dict) -> tuple[int, str]:
+    """Warehouse utilization balance (deep): checks if queries are spread across warehouses."""
+    st = _st(data)
+    if not _st_available(st, "query_history"):
+        return 1, "Requires --deep scan with system tables. Cannot assess warehouse utilization from API alone."
+    qh = st["query_history"]
+    wh_util = qh.get("warehouse_utilization", [])
+    total = qh.get("total_queries_30d", 0)
+    if not wh_util or total == 0:
+        return 1, "No warehouse utilization data available."
+    top_count = int(wh_util[0].get("query_count") or 0)
+    top_pct = (top_count / total) * 100 if total > 0 else 0
+    if len(wh_util) == 1 and top_pct > 90:
+        return 1, f"All queries routed to single warehouse. Consider scaling across multiple warehouses."
+    if top_pct > 80:
+        return 1, f"Top warehouse handles {top_pct:.0f}% of queries. Consider load distribution."
+    return 2, f"Queries distributed across {len(wh_util)} warehouses (top: {top_pct:.0f}%)."
+
+
+def _score_rel_020(data: dict) -> tuple[int, str]:
+    """Job success rate (deep): checks overall job run success rate."""
+    st = _st(data)
+    if not _st_available(st, "job_runs"):
+        return 1, "Requires --deep scan with system tables. Cannot assess job success rate from API alone."
+    jr = st["job_runs"]
+    total = jr.get("total_runs_30d", 0)
+    rate = jr.get("success_rate_pct", 0)
+    failed = jr.get("failed_runs_30d", 0)
+    if total == 0:
+        return 1, "No job runs found in the last 30 days."
+    if rate < 90:
+        return 0, f"Job success rate is {rate}% ({failed} failures out of {total} runs). Investigate and add retries."
+    if rate < 98:
+        return 1, f"Job success rate is {rate}% ({total} runs/30d). Some failures need attention."
+    return 2, f"High job success rate: {rate}% across {total} runs in 30 days."
+
+
+def _score_rel_021(data: dict) -> tuple[int, str]:
+    """Recurring job failures (deep): checks for jobs that fail repeatedly."""
+    st = _st(data)
+    if not _st_available(st, "job_runs"):
+        return 1, "Requires --deep scan with system tables. Cannot assess recurring failures from API alone."
+    jr = st["job_runs"]
+    top_failing = jr.get("top_failing_jobs", [])
+    if not top_failing:
+        return 2, "No recurring job failures detected in the last 30 days."
+    chronic = [j for j in top_failing if int(j.get("failures") or 0) >= 5]
+    if len(chronic) >= 3:
+        return 0, f"{len(chronic)} jobs have 5+ failures in 30 days. Chronic reliability issue — investigate root causes."
+    if chronic:
+        return 1, f"{len(chronic)} job(s) with 5+ failures. {len(top_failing)} jobs had at least 1 failure. Review and fix."
+    return 1, f"{len(top_failing)} jobs had failures in 30 days, but none are chronic (< 5 each)."
+
+
+def _score_sec_013(data: dict) -> tuple[int, str]:
+    """Failed login monitoring (deep): checks for suspicious auth failures."""
+    st = _st(data)
+    if not _st_available(st, "audit_events"):
+        return 1, "Requires --deep scan with system tables. Cannot assess login failures from API alone."
+    ae = st["audit_events"]
+    failed = ae.get("failed_logins_30d", 0)
+    if failed > 50:
+        return 0, f"{failed} failed login attempts in 30 days. Possible brute-force. Enable IP access lists and review."
+    if failed > 10:
+        return 1, f"{failed} failed logins in 30 days. Monitor for patterns."
+    return 2, f"Low failed login count ({failed} in 30 days). Authentication appears healthy."
+
+
+def _score_sec_014(data: dict) -> tuple[int, str]:
+    """Permission change audit (deep): checks volume of permission changes."""
+    st = _st(data)
+    if not _st_available(st, "audit_events"):
+        return 1, "Requires --deep scan with system tables. Cannot assess permission changes from API alone."
+    ae = st["audit_events"]
+    changes = ae.get("permission_changes_30d", 0)
+    total_events = ae.get("total_events_30d", 0)
+    if changes > 200:
+        return 0, f"{changes} permission changes in 30 days (of {total_events} total events). High churn — review governance."
+    if changes > 50:
+        return 1, f"{changes} permission changes in 30 days. Ensure changes follow approval process."
+    return 2, f"Permission changes within normal range ({changes} in 30 days)."
+
+
+def _score_ops_024(data: dict) -> tuple[int, str]:
+    """Cluster utilization efficiency (deep): checks actual vs provisioned compute."""
+    st = _st(data)
+    if not _st_available(st, "compute_history"):
+        return 1, "Requires --deep scan with system tables. Cannot assess cluster utilization from API alone."
+    ch = st["compute_history"]
+    uptime = ch.get("cluster_uptime", [])
+    total_hours = ch.get("total_running_hours_30d", 0)
+    if not uptime:
+        return 1, "No cluster lifecycle data found."
+    active_clusters = len(uptime)
+    avg_hours = total_hours / active_clusters if active_clusters > 0 else 0
+    # More than 500 hours per cluster in 30 days means nearly 24/7
+    always_on = [c for c in uptime if float(c.get("running_hours") or 0) > 500]
+    if always_on:
+        names = ", ".join(c.get("cluster_name", "?")[:25] for c in always_on[:3])
+        return 0, f"{len(always_on)} clusters running ~24/7 ({names}). Convert to jobs or serverless."
+    if avg_hours > 200:
+        return 1, f"Average cluster uptime is {avg_hours:.0f}h/30d across {active_clusters} clusters. Review utilization."
+    return 2, f"{active_clusters} active clusters with avg {avg_hours:.0f}h uptime/30d. Utilization looks reasonable."
+
+
+# ---------------------------------------------------------------------------
 # Scoring Registry
 # ---------------------------------------------------------------------------
 
@@ -1497,6 +1707,18 @@ SCORING_REGISTRY: dict[str, Callable[..., tuple[int, str]]] = {
     "cost-018": _score_cost_018,
     "cost-019": _score_cost_019,
     "cost-020": _score_cost_020,
+    # Deep scan (system tables)
+    "cost-021": _score_cost_021,
+    "cost-022": _score_cost_022,
+    "cost-023": _score_cost_023,
+    "perf-026": _score_perf_026,
+    "perf-027": _score_perf_027,
+    "perf-028": _score_perf_028,
+    "rel-020": _score_rel_020,
+    "rel-021": _score_rel_021,
+    "sec-013": _score_sec_013,
+    "sec-014": _score_sec_014,
+    "ops-024": _score_ops_024,
 }
 
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-WAL-E (Well-Architected Lakehouse Evaluator) is an automated assessment tool for Databricks workspaces. It evaluates workspaces against the [Well-Architected Lakehouse Framework](https://docs.databricks.com/lakehouse-architecture/well-architected) by querying Databricks APIs, scoring **129 best practices** across **7 pillars**, and generating assessment reports.
+WAL-E (Well-Architected Lakehouse Evaluator) is an automated assessment tool for Databricks workspaces. It evaluates workspaces against the [Well-Architected Lakehouse Framework](https://docs.databricks.com/lakehouse-architecture/well-architected) by querying Databricks APIs, scoring **140 best practices** (129 standard + 11 deep scan) across **7 pillars**, and generating assessment reports.
 
 **Operating Model:** WAL-E is designed to be **run by the customer on their own machine**, with a Databricks SA guiding them through every step. No tokens, credentials, or data ever leave the customer's environment. The SA joins via screen share and guides the process.
 
@@ -11,22 +11,22 @@ WAL-E auto-detects the cloud provider (AWS / Azure / GCP) from the workspace URL
 ## How to Run
 
 ```bash
-# Full assessment (collect data, score, and generate reports)
-wal-e assess
+# Standard assessment (21 API calls, 129 best practices)
+wal-e assess --profile wal-assessment --output ./my-assessment --format all
 
-# With specific profile and output
-wal-e assess --profile customer-workspace --output ./assessment-results --format all
+# Deep scan (adds system tables: billing, compute, query, audit, jobs)
+wal-e assess --profile wal-assessment --deep --warehouse-id <ID> --format all
 
-# Validate workspace access before running assessment
-wal-e validate --profile customer-workspace
+# Validate workspace access before running
+wal-e validate --profile wal-assessment
 
-# Interactive mode (recommended for customer sessions)
-wal-e assess --interactive --profile customer-workspace
+# Interactive mode (SA guides customer through each step)
+wal-e assess --interactive --profile wal-assessment
 
 # Re-generate reports from cached data
-wal-e report --input ./assessment-results --format pptx html csv
+wal-e report --input ./my-assessment --format pptx html csv
 
-# Show access setup guide for customer sessions
+# Show customer-facing setup guide
 wal-e setup --guide
 ```
 
@@ -34,8 +34,8 @@ wal-e setup --guide
 
 | Component | Path | Description |
 |-----------|------|-------------|
-| **Collectors** | `src/wal_e/collectors/` | Data collection from Databricks APIs (23+ endpoints) |
-| **Framework** | `src/wal_e/framework/` | WAL scoring engine (129 best practices, 7 pillars) |
+| **Collectors** | `src/wal_e/collectors/` | Data collection from Databricks APIs + system tables |
+| **Framework** | `src/wal_e/framework/` | WAL scoring engine (140 best practices, 7 pillars) |
 | **Reporters** | `src/wal_e/reporters/` | Report generators (MD, CSV, HTML, PPTX, Audit) |
 | **Core** | `src/wal_e/core/` | Orchestration engine, config, cloud detection |
 | **MCP** | `mcp/` | MCP server for AI Dev Kit integration |

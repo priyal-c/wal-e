@@ -150,6 +150,10 @@ def _run_assess_foreground(args: argparse.Namespace, config: Any, engine: Any) -
         }.get(config.cloud_provider, C.DIM)
         print(f"{C.BLUE}Profile:{C.RESET} {args.profile}  {C.BLUE}Output:{C.RESET} {args.output}")
         print(f"{C.BLUE}Cloud:{C.RESET}   {cloud_color}{cloud_label}{C.RESET}")
+        if config.deep_scan:
+            print(f"{C.BLUE}Mode:{C.RESET}    {C.GREEN}Deep Scan{C.RESET} (system tables via warehouse {config.warehouse_id})")
+        else:
+            print(f"{C.BLUE}Mode:{C.RESET}    Standard (API-only)")
         timeout_val = getattr(args, "timeout", 600)
         if timeout_val and timeout_val > 0:
             print(f"{C.BLUE}Timeout:{C.RESET} {timeout_val}s")
@@ -341,7 +345,20 @@ def _run_assess(args: argparse.Namespace) -> int:
     from wal_e.core.config import WalEConfig
     from wal_e.core.engine import AssessmentEngine
 
-    config = WalEConfig(profile_name=args.profile, output_dir=args.output, formats=args.format or ["md", "csv", "html", "pptx", "audit"])
+    deep = getattr(args, "deep", False)
+    wh_id = getattr(args, "warehouse_id", "")
+    if deep and not wh_id:
+        print(f"{C.RED}Error:{C.RESET} --deep requires --warehouse-id <ID>")
+        print(f"  Find your warehouse ID: Workspace > SQL Warehouses > click warehouse > copy ID from URL")
+        return 1
+
+    config = WalEConfig(
+        profile_name=args.profile,
+        output_dir=args.output,
+        formats=args.format or ["md", "csv", "html", "pptx", "audit"],
+        deep_scan=deep,
+        warehouse_id=wh_id,
+    )
     engine = AssessmentEngine(config)
 
     def _on_sigint(*_args: Any) -> None:
@@ -536,17 +553,28 @@ WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
   {C.RED}-{C.RESET} NEVER accesses secret values (only scope names)
   {C.RED}-{C.RESET} NEVER transmits data to any external service
 
-{C.BOLD}OPTIONAL: SYSTEM TABLES (for deeper analysis){C.RESET}
+{C.BOLD}OPTIONAL: DEEP SCAN (system tables for operational analysis){C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
-  Your account admin can run these in a SQL warehouse:
+  The standard scan uses the 21 API calls above (129 best practices).
+  For a {C.GREEN}deep scan{C.RESET} (+11 best practices), WAL-E also queries system tables
+  to assess actual cost trends, cluster idle time, query failure rates,
+  job success rates, and security audit events.
+
+  {C.BOLD}Requires:{C.RESET}
+    - A running SQL warehouse (note the warehouse ID)
+    - SELECT grants on system schemas
+
+  Your account admin runs these in a SQL warehouse:
     {C.CYAN}GRANT SELECT ON SCHEMA system.billing TO `your-user`;{C.RESET}
     {C.CYAN}GRANT SELECT ON SCHEMA system.compute TO `your-user`;{C.RESET}
     {C.CYAN}GRANT SELECT ON SCHEMA system.query   TO `your-user`;{C.RESET}
     {C.CYAN}GRANT SELECT ON SCHEMA system.access  TO `your-user`;{C.RESET}
 
-  {C.DIM}System tables are optional. WAL-E produces a complete
-  assessment using only the 21 API calls listed above.{C.RESET}
+  Then run:
+    {C.CYAN}${C.RESET} wal-e assess --profile wal-assessment --deep --warehouse-id <ID>
+
+  {C.DIM}Deep scan is optional. Standard mode works perfectly with just APIs.{C.RESET}
 
 {C.DIM}Full documentation: ACCESS_GUIDE.md in the WAL-E repo{C.RESET}
 """
@@ -643,6 +671,12 @@ def main() -> int:
                                help="Run assessment in background and return immediately. "
                                     "Results are written to the output directory when complete. "
                                     "Use 'wal-e report' to check/regenerate reports from cached data.")
+    assess_parser.add_argument("--deep", action="store_true",
+                               help="Deep scan: query system tables (billing, compute, query history, "
+                                    "audit) via a SQL warehouse for operational reality analysis. "
+                                    "Requires --warehouse-id and SELECT on system.* schemas.")
+    assess_parser.add_argument("--warehouse-id", default="", metavar="ID",
+                               help="SQL warehouse ID for --deep scan (find in SQL Warehouses page).")
     assess_parser.set_defaults(func=_run_assess)
 
     validate_parser = subparsers.add_parser("validate", help="Validate workspace access")
