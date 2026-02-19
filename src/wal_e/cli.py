@@ -484,6 +484,42 @@ WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
   {C.GREEN}Workspace + Metastore admin{C.RESET} .. ~95% of best practices scored
   Above + System tables ........ 100% of best practices scored
 
+{C.BOLD}API CALLS MADE (ALL READ-ONLY){C.RESET}
+{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
+
+  {C.BLUE}Authentication (2 calls){C.RESET}
+    GET  auth describe
+    GET  current-user me
+
+  {C.BLUE}Unity Catalog (4 calls){C.RESET}          {C.DIM}[metastore admin recommended]{C.RESET}
+    GET  /api/2.1/unity-catalog/metastore_summary
+    GET  /api/2.1/unity-catalog/catalogs
+    GET  /api/2.1/unity-catalog/external-locations
+    GET  /api/2.1/unity-catalog/storage-credentials
+
+  {C.BLUE}Compute (4 calls){C.RESET}               {C.DIM}[admin for all clusters]{C.RESET}
+    GET  /api/2.1/clusters/list
+    GET  /api/2.0/sql/warehouses
+    GET  /api/2.0/cluster-policies/list
+    GET  /api/2.0/instance-pools/list
+
+  {C.BLUE}Security (3 calls){C.RESET}              {C.DIM}[workspace admin REQUIRED]{C.RESET}
+    GET  /api/2.0/workspace-conf
+    GET  /api/2.0/ip-access-lists
+    GET  /api/2.0/token/list
+
+  {C.BLUE}Operations (7 calls){C.RESET}            {C.DIM}[admin for complete lists]{C.RESET}
+    GET  /api/2.1/jobs/list
+    GET  /api/2.0/pipelines
+    GET  /api/2.0/serving-endpoints
+    GET  /api/2.0/repos
+    GET  /api/2.0/global-init-scripts
+    GET  /api/2.0/groups/list
+    GET  /api/2.0/secrets/list-scopes
+
+  {C.BLUE}Workspace (1 call){C.RESET}
+    GET  /api/2.0/workspace/list (root only)
+
 {C.BOLD}SECURITY ASSURANCES{C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
@@ -499,6 +535,18 @@ WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
   {C.RED}-{C.RESET} NEVER creates, modifies, or deletes any resource
   {C.RED}-{C.RESET} NEVER accesses secret values (only scope names)
   {C.RED}-{C.RESET} NEVER transmits data to any external service
+
+{C.BOLD}OPTIONAL: SYSTEM TABLES (for deeper analysis){C.RESET}
+{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
+
+  Your account admin can run these in a SQL warehouse:
+    {C.CYAN}GRANT SELECT ON SCHEMA system.billing TO `your-user`;{C.RESET}
+    {C.CYAN}GRANT SELECT ON SCHEMA system.compute TO `your-user`;{C.RESET}
+    {C.CYAN}GRANT SELECT ON SCHEMA system.query   TO `your-user`;{C.RESET}
+    {C.CYAN}GRANT SELECT ON SCHEMA system.access  TO `your-user`;{C.RESET}
+
+  {C.DIM}System tables are optional. WAL-E produces a complete
+  assessment using only the 21 API calls listed above.{C.RESET}
 
 {C.DIM}Full documentation: ACCESS_GUIDE.md in the WAL-E repo{C.RESET}
 """
