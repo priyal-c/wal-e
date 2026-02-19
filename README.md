@@ -81,14 +81,14 @@ WAL-E connects to a customer's Databricks workspace via CLI, queries 23+ API end
 
 ```bash
 # Clone the repo
-git clone https://github.com/databricks-solutions/wal-e.git
+gh repo clone priyal-chindarkar_data/wal-e
 cd wal-e
 
 # Install dependencies
 pip install -e .
 
 # Or use the quick installer
-curl -sL https://raw.githubusercontent.com/databricks-solutions/wal-e/main/install.sh | bash
+./install.sh --cli
 ```
 
 ### Run Assessment
