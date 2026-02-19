@@ -341,16 +341,58 @@ def _run_assess_background(args: argparse.Namespace, config: Any, engine: Any) -
     return 0
 
 
+def _auto_discover_warehouse(profile: str) -> str:
+    """Auto-discover the best SQL warehouse for deep scan.
+
+    Priority: serverless + RUNNING > serverless + STOPPED (auto-starts) > any RUNNING > any STOPPED.
+    """
+    try:
+        result = subprocess.run(
+            ["databricks", "api", "get", "/api/2.0/sql/warehouses", "--profile", profile],
+            capture_output=True, text=True, timeout=30,
+        )
+        if result.returncode != 0 or not result.stdout:
+            return ""
+        data = json.loads(result.stdout)
+        warehouses = data.get("warehouses", []) or []
+        if not warehouses:
+            return ""
+
+        # Score each warehouse: higher = better candidate
+        def _rank(w: dict) -> tuple[int, int, str]:
+            is_serverless = 1 if w.get("enable_serverless_compute") else 0
+            is_running = 1 if w.get("state") == "RUNNING" else 0
+            return (is_serverless, is_running, w.get("id", ""))
+
+        warehouses.sort(key=_rank, reverse=True)
+        best = warehouses[0]
+        wh_id = best.get("id", "")
+        wh_name = best.get("name", "unknown")
+        wh_type = "serverless" if best.get("enable_serverless_compute") else "classic"
+        wh_state = best.get("state", "UNKNOWN")
+
+        print(f"{C.BLUE}Deep scan:{C.RESET} Auto-selected warehouse {C.BOLD}{wh_name}{C.RESET} ({wh_type}, {wh_state})")
+        if wh_state != "RUNNING":
+            print(f"  {C.DIM}Warehouse will auto-start when the first query is sent.{C.RESET}")
+        return wh_id
+    except Exception:
+        return ""
+
+
 def _run_assess(args: argparse.Namespace) -> int:
     from wal_e.core.config import WalEConfig
     from wal_e.core.engine import AssessmentEngine
 
     deep = getattr(args, "deep", False)
     wh_id = getattr(args, "warehouse_id", "")
+
     if deep and not wh_id:
-        print(f"{C.RED}Error:{C.RESET} --deep requires --warehouse-id <ID>")
-        print(f"  Find your warehouse ID: Workspace > SQL Warehouses > click warehouse > copy ID from URL")
-        return 1
+        wh_id = _auto_discover_warehouse(args.profile)
+        if not wh_id:
+            print(f"{C.RED}Error:{C.RESET} --deep requires a SQL warehouse but none could be auto-discovered.")
+            print(f"  Either provide --warehouse-id <ID> or ensure at least one SQL warehouse exists.")
+            print(f"  Find your warehouse ID: Workspace > SQL Warehouses > click warehouse > copy ID from URL")
+            return 1
 
     config = WalEConfig(
         profile_name=args.profile,
@@ -676,7 +718,8 @@ def main() -> int:
                                     "audit) via a SQL warehouse for operational reality analysis. "
                                     "Requires --warehouse-id and SELECT on system.* schemas.")
     assess_parser.add_argument("--warehouse-id", default="", metavar="ID",
-                               help="SQL warehouse ID for --deep scan (find in SQL Warehouses page).")
+                               help="SQL warehouse ID for --deep scan. If omitted, WAL-E auto-selects "
+                                    "the best available warehouse (prefers serverless).")
     assess_parser.set_defaults(func=_run_assess)
 
     validate_parser = subparsers.add_parser("validate", help="Validate workspace access")
