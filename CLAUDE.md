@@ -4,6 +4,8 @@
 
 WAL-E (Well-Architected Lakehouse Evaluator) is an automated assessment tool for Databricks workspaces. It evaluates workspaces against the [Well-Architected Lakehouse Framework](https://docs.databricks.com/lakehouse-architecture/well-architected) by querying Databricks APIs, scoring **129 best practices** across **7 pillars**, and generating assessment reports.
 
+**Operating Model:** WAL-E is designed to be **run by the customer on their own machine**, with a Databricks SA guiding them through every step. No tokens, credentials, or data ever leave the customer's environment. The SA joins via screen share and guides the process.
+
 WAL-E auto-detects the cloud provider (AWS / Azure / GCP) from the workspace URL and fine-tunes all scoring and recommendations to be cloud-specific.
 
 ## How to Run
@@ -40,20 +42,22 @@ wal-e setup --guide
 
 ## Key Rules
 
-1. **READ-ONLY ACCESS** - All workspace access is read-only. Never modify the customer workspace. WAL-E only queries APIs and system tables.
+1. **CUSTOMER-RUN** - WAL-E runs on the customer's machine. The SA guides via screen share. No tokens leave the customer's environment.
 
-2. **Validate First** - Always validate access with `wal-e validate` before running a full assessment.
+2. **READ-ONLY ACCESS** - All workspace access is read-only. Never modify the workspace. WAL-E only queries APIs and system tables.
 
-3. **Scoring Scale** - Best practices use a 0-2 scale:
+3. **Validate First** - Always validate access with `wal-e validate` before running a full assessment.
+
+4. **Scoring Scale** - Best practices use a 0-2 scale:
    - **0** = Not Implemented
    - **1** = Partial
    - **2** = Full
 
-4. **Cloud-Aware** - WAL-E auto-detects the cloud from the workspace URL and tailors scoring (e.g., Graviton on AWS, Dv5 on Azure, T2D on GCP).
+5. **Cloud-Aware** - WAL-E auto-detects the cloud from the workspace URL and tailors scoring (e.g., Graviton on AWS, Dv5 on Azure, T2D on GCP).
 
-5. **Audit Trail** - All reports must include or reference an audit trail of API calls made.
+6. **Audit Trail** - All reports must include or reference an audit trail of API calls made.
 
-6. **Configuration** - WAL-E uses `~/.databrickscfg` for host and token. Set `--profile` for different workspaces.
+7. **Configuration** - WAL-E uses `~/.databrickscfg` for host and token. Set `--profile` for different workspaces.
 
 ## 7 Pillars (129 Best Practices)
 

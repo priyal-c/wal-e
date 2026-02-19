@@ -35,6 +35,7 @@ WAL_E_BANNER = """
    \\ V  V /   / ___ \\   |  __|
     \\_/\\_/   /_/   \\_\\  |_|____
 \x1b[0m    \x1b[2mWell-Architected Lakehouse Evaluator\x1b[0m
+    \x1b[2mRuns on YOUR machine • SA guides you\x1b[0m
 """
 
 
@@ -417,37 +418,63 @@ def _run_validate(args: argparse.Namespace) -> int:
 
 def _print_access_guide() -> None:
     guide = f"""
-{C.BOLD}WAL-E Access Requirements Guide{C.RESET}
+{C.BOLD}WAL-E Setup Guide — For You (the Customer){C.RESET}
 {C.DIM}══════════════════════════════════════════════════════════════{C.RESET}
 
-WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess a Databricks workspace.
+{C.GREEN}You run WAL-E on YOUR machine. Your SA guides you.{C.RESET}
+{C.GREEN}No tokens or data leave your environment.{C.RESET}
+
+WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
 {C.GREEN}Zero writes. Zero data access. Zero resource modifications.{C.RESET}
 
-{C.BOLD}WHAT THE CUSTOMER NEEDS TO PROVIDE{C.RESET}
+{C.BOLD}STEP 1: CREATE A PAT TOKEN (1 minute){C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
-  {C.BOLD}1. Personal Access Token (PAT){C.RESET}
-     Created by a {C.YELLOW}workspace admin{C.RESET} (metastore admin recommended)
-     - Workspace > Settings > Developer > Access tokens > Generate
-     - Lifetime: {C.GREEN}1 day{C.RESET} (assessment takes ~15 minutes)
-     - Description: "WAL-E Assessment - [date]"
+  Log into your workspace as a {C.YELLOW}workspace admin{C.RESET}:
+  1. Click your username (top-right) > {C.BOLD}Settings{C.RESET}
+  2. Go to {C.BOLD}Developer{C.RESET} > {C.BOLD}Access tokens{C.RESET} > {C.BOLD}Generate New Token{C.RESET}
+  3. Description: {C.DIM}"WAL-E Assessment - [today's date]"{C.RESET}
+  4. Lifetime: {C.GREEN}1 day{C.RESET} (assessment takes ~15 minutes)
+  5. Click {C.BOLD}Generate{C.RESET} and copy the token
 
-  {C.BOLD}2. Workspace URL{C.RESET}
-     e.g., https://adb-xxxxx.azuredatabricks.net
-          https://customer.cloud.databricks.com
-
-{C.BOLD}SA SETUP STEPS{C.RESET}
+{C.BOLD}STEP 2: CONFIGURE THE DATABRICKS CLI (1 minute){C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
-  {C.CYAN}${C.RESET} databricks configure --profile customer-assessment \\
-      --host https://WORKSPACE-URL --token
-  {C.DIM}# Paste the customer's PAT when prompted{C.RESET}
+  {C.CYAN}${C.RESET} databricks configure --profile wal-assessment \\
+      --host https://YOUR-WORKSPACE-URL --token
+  {C.DIM}# Paste the PAT token you just created{C.RESET}
 
-  {C.CYAN}${C.RESET} wal-e validate --profile customer-assessment
-  {C.DIM}# Verify connectivity and permissions{C.RESET}
+{C.BOLD}STEP 3: VALIDATE ACCESS (30 seconds){C.RESET}
+{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
-  {C.CYAN}${C.RESET} wal-e assess --profile customer-assessment --interactive
-  {C.DIM}# Run the assessment{C.RESET}
+  {C.CYAN}${C.RESET} wal-e validate --profile wal-assessment
+
+{C.BOLD}STEP 4: RUN THE ASSESSMENT (5-10 minutes){C.RESET}
+{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
+
+  {C.CYAN}${C.RESET} wal-e assess --profile wal-assessment --interactive
+  {C.DIM}# Your SA will walk you through each step{C.RESET}
+
+  Or for a quick scan:
+  {C.CYAN}${C.RESET} wal-e assess --profile wal-assessment --output ./my-assessment --format all
+
+{C.BOLD}STEP 5: REVIEW RESULTS WITH YOUR SA{C.RESET}
+{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
+
+  Reports are saved in your output directory:
+  - WAL_Assessment_Readout.md     (detailed report)
+  - WAL_Assessment_Scores.csv     (129 scored best practices)
+  - WAL_Assessment_Presentation.pptx (executive deck)
+  - WAL_Assessment_Audit_Report.md   (full evidence trail)
+
+  Share with your SA via screen share or by sending the files.
+
+{C.BOLD}STEP 6: CLEAN UP (1 minute){C.RESET}
+{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
+
+  1. Revoke your token: Settings > Developer > Access tokens > Revoke
+  2. Remove CLI profile: edit ~/.databrickscfg, delete [wal-assessment]
+  3. Delete local files: rm -rf ./my-assessment
 
 {C.BOLD}COVERAGE BY ACCESS LEVEL{C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
@@ -457,72 +484,21 @@ WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess a Databricks works
   {C.GREEN}Workspace + Metastore admin{C.RESET} .. ~95% of best practices scored
   Above + System tables ........ 100% of best practices scored
 
-{C.BOLD}API CALLS MADE (ALL READ-ONLY){C.RESET}
+{C.BOLD}SECURITY ASSURANCES{C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
-  {C.BLUE}Authentication (2 calls){C.RESET}
-    GET  auth describe
-    GET  current-user me
-
-  {C.BLUE}Unity Catalog (4 calls){C.RESET}          {C.DIM}[metastore admin recommended]{C.RESET}
-    GET  /api/2.1/unity-catalog/metastore_summary
-    GET  /api/2.1/unity-catalog/catalogs
-    GET  /api/2.1/unity-catalog/external-locations
-    GET  /api/2.1/unity-catalog/storage-credentials
-
-  {C.BLUE}Compute (4 calls){C.RESET}               {C.DIM}[admin for all clusters]{C.RESET}
-    GET  /api/2.1/clusters/list
-    GET  /api/2.0/sql/warehouses
-    GET  /api/2.0/cluster-policies/list
-    GET  /api/2.0/instance-pools/list
-
-  {C.BLUE}Security (3 calls){C.RESET}              {C.DIM}[workspace admin REQUIRED]{C.RESET}
-    GET  /api/2.0/workspace-conf
-    GET  /api/2.0/ip-access-lists
-    GET  /api/2.0/token/list
-
-  {C.BLUE}Operations (7 calls){C.RESET}            {C.DIM}[admin for complete lists]{C.RESET}
-    GET  /api/2.1/jobs/list
-    GET  /api/2.0/pipelines
-    GET  /api/2.0/serving-endpoints
-    GET  /api/2.0/repos
-    GET  /api/2.0/global-init-scripts
-    GET  /api/2.0/groups/list
-    GET  /api/2.0/secrets/list-scopes
-
-  {C.BLUE}Workspace (1 call){C.RESET}
-    GET  /api/2.0/workspace/list (root only)
-
-{C.BOLD}SECURITY ASSURANCES FOR THE CUSTOMER{C.RESET}
-{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
-
-  {C.GREEN}+{C.RESET} All calls are HTTPS/TLS encrypted
-  {C.GREEN}+{C.RESET} Assessment results stored locally on SA machine only
-  {C.GREEN}+{C.RESET} Complete audit trail provided as a deliverable
-  {C.GREEN}+{C.RESET} Token can be revoked immediately after assessment
+  {C.GREEN}+{C.RESET} YOU run everything on YOUR machine
+  {C.GREEN}+{C.RESET} Your token NEVER leaves your environment
+  {C.GREEN}+{C.RESET} All calls are HTTPS/TLS encrypted to YOUR workspace
+  {C.GREEN}+{C.RESET} Results are stored locally on YOUR machine only
+  {C.GREEN}+{C.RESET} Complete audit trail so you can verify every API call
+  {C.GREEN}+{C.RESET} Token auto-expires in 1 day (or revoke immediately)
 
   {C.RED}-{C.RESET} NEVER reads table data, file contents, or query results
   {C.RED}-{C.RESET} NEVER executes notebooks, jobs, or pipelines
   {C.RED}-{C.RESET} NEVER creates, modifies, or deletes any resource
   {C.RED}-{C.RESET} NEVER accesses secret values (only scope names)
-  {C.RED}-{C.RESET} NEVER transmits data to external services
-
-{C.BOLD}OPTIONAL: SYSTEM TABLES (for deeper analysis){C.RESET}
-{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
-
-  Customer admin runs:
-    GRANT SELECT ON SCHEMA system.billing TO `sa-user`;
-    GRANT SELECT ON SCHEMA system.compute TO `sa-user`;
-    GRANT SELECT ON SCHEMA system.query   TO `sa-user`;
-    GRANT SELECT ON SCHEMA system.access  TO `sa-user`;
-
-{C.BOLD}AFTER THE ASSESSMENT{C.RESET}
-{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
-
-  1. Customer revokes PAT: Settings > Developer > Access tokens > Revoke
-  2. SA removes CLI profile: edit ~/.databrickscfg
-  3. SA delivers assessment reports to customer
-  4. SA deletes local assessment files
+  {C.RED}-{C.RESET} NEVER transmits data to any external service
 
 {C.DIM}Full documentation: ACCESS_GUIDE.md in the WAL-E repo{C.RESET}
 """

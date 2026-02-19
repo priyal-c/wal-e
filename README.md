@@ -15,118 +15,181 @@
 
 ## What is WAL-E?
 
-**WAL-E** is an agentic assessment tool that automatically evaluates a Databricks workspace against the [Well-Architected Lakehouse Framework](https://docs.databricks.com/aws/en/lakehouse-architecture/well-architected). Built by Field Engineering for SAs, it turns a week-long manual assessment into a **15-minute automated scan**.
+**WAL-E** is an open-source assessment tool that automatically evaluates a Databricks workspace against the [Well-Architected Lakehouse Framework](https://docs.databricks.com/aws/en/lakehouse-architecture/well-architected). It turns a week-long manual assessment into a **15-minute automated scan**.
 
-WAL-E connects to a customer's Databricks workspace via CLI, queries 23+ API endpoints and system tables, scores **99 best practices** across **7 pillars**, and generates a complete readout deck -- ready to present.
+**WAL-E is designed to be run by the customer on their own system**, with a Databricks Solutions Architect guiding them through every step. No tokens, credentials, or data ever leave the customer's environment.
+
+### How It Works
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    CUSTOMER'S ENVIRONMENT                    │
+│                                                             │
+│   Customer runs WAL-E    ──►   WAL-E queries workspace     │
+│   on their own machine          (21 read-only API calls)   │
+│                                                             │
+│   Reports generated      ◄──   Results stay local          │
+│   locally                      (nothing leaves)            │
+│                                                             │
+│                    SA joins via screen share                 │
+│                    and guides the process                    │
+└─────────────────────────────────────────────────────────────┘
+```
 
 ### Key Features
 
-- **Automated Data Collection** - 23+ API/CLI queries across governance, security, compute, operations, and cost
-- **Framework-Aligned Scoring** - Every best practice from the WAL Assessment Tool, scored 0-2
-- **Multiple Output Formats** - Markdown report, executive deck, scored CSV, HTML presentation, PPTX (Google Slides), and full audit trail
-- **AI-Native** - Works as a Cursor skill, Claude Code skill, or MCP tool via AI Dev Kit
-- **Interactive SA Flow** - Guided walkthrough for customer collaboration
+- **Customer-Run** - Runs entirely on the customer's machine; no token sharing, no credential handoff
+- **SA-Guided** - Your Databricks SA walks you through every step via screen share or call
+- **Automated Data Collection** - 23+ read-only API/CLI queries across governance, security, compute, operations, and cost
+- **Cloud-Aware** - Auto-detects AWS, Azure, or GCP and tailors all scoring and recommendations
+- **129 Best Practices** - Scored 0-2 across 7 pillars of the Well-Architected Framework
+- **Multiple Output Formats** - Markdown, executive deck (PPTX), scored CSV, HTML presentation, and full audit trail
 - **Zero Workspace Modification** - 100% read-only; no writes, no side effects
+- **AI-Native** - Works as a Cursor skill, Claude Code skill, or MCP tool
+
+### Security Model
+
+| Concern | How WAL-E Handles It |
+|---------|---------------------|
+| **Who runs it?** | The **customer** runs WAL-E on their own machine |
+| **Token sharing?** | **None** — the customer creates and uses their own token locally |
+| **Where do results go?** | **Stays on the customer's machine** — nothing is transmitted externally |
+| **What does the SA see?** | Only what the customer **chooses to share** (e.g., via screen share or sending the report) |
+| **What does WAL-E access?** | **Metadata only** — never reads table data, file contents, or secret values |
+| **How to clean up?** | Customer revokes their own token and deletes local results |
 
 ---
 
-## Architecture
+## Quick Start (For Customers)
 
-```
-                    +------------------+
-                    |   SA / Customer  |
-                    +--------+---------+
-                             |
-                    +--------v---------+
-                    |    WAL-E Agent    |
-                    |  (CLI / Skill /  |
-                    |   MCP Server)    |
-                    +--------+---------+
-                             |
-              +--------------+--------------+
-              |              |              |
-     +--------v---+  +------v------+  +----v-------+
-     | Collectors  |  |  Scoring    |  | Reporters  |
-     | (23+ APIs)  |  |  Engine     |  | (6 formats)|
-     +--------+---+  +------+------+  +----+-------+
-              |              |              |
-     +--------v--------------v--------------v-------+
-     |           Databricks Workspace               |
-     |  (Unity Catalog, Clusters, Jobs, Security)   |
-     +----------------------------------------------+
-```
-
-### Components
-
-| Component | Description |
-|-----------|-------------|
-| `src/wal_e/collectors/` | Data collection modules for each assessment area |
-| `src/wal_e/framework/` | WAL pillar definitions, best practices, scoring logic |
-| `src/wal_e/reporters/` | Report generators (MD, CSV, HTML, PPTX, Audit) |
-| `src/wal_e/core/` | Orchestration engine, config, CLI |
-| `src/wal_e/skills/` | AI assistant skill definitions |
-| `mcp/` | MCP server for AI Dev Kit integration |
-
----
-
-## Quick Start
+Your Databricks SA will guide you through these steps on a call or screen share.
 
 ### Prerequisites
 
 - Python 3.10+
 - [Databricks CLI](https://docs.databricks.com/dev-tools/cli/install.html) v0.200+ configured with workspace access
-- Read-only access to the target workspace (admin recommended for full assessment)
+- Workspace admin access (recommended for full assessment)
 
-### Install
+### Step 1: Install WAL-E
 
 ```bash
 # Clone the repo
 gh repo clone priyal-chindarkar_data/wal-e
 cd wal-e
 
-# Install dependencies
+# Install
 pip install -e .
 
 # Or use the quick installer
 ./install.sh --cli
 ```
 
-### Run Assessment
+### Step 2: Configure Workspace Access
 
 ```bash
-# Interactive mode (recommended for customer sessions)
-wal-e assess --interactive
+# Configure your Databricks CLI (you'll need your workspace URL)
+databricks configure --profile wal-assessment \
+  --host https://YOUR-WORKSPACE.cloud.databricks.com \
+  --token
 
-# Quick scan with default profile
-wal-e assess
-
-# Specify profile and output directory
-wal-e assess --profile customer-workspace --output ./assessment-results
-
-# Generate specific output format
-wal-e assess --format pptx --format html --format csv
-
-# Set a custom timeout (in seconds, default: 600, use 0 for no limit)
-wal-e assess --timeout 0
-
-# Run in background (useful inside Claude Code or CI/CD)
-wal-e assess --run-in-background --output ./assessment-results
+# When prompted, paste a PAT token you created as workspace admin
+# (Settings > Developer > Access tokens > Generate — set lifetime to 1 day)
 ```
 
-### Customer Collaboration Flow
+### Step 3: Validate Access
 
 ```bash
-# 1. SA walks customer through access setup
+# Verify connectivity before running the full assessment
+wal-e validate --profile wal-assessment
+```
+
+### Step 4: Run the Assessment
+
+```bash
+# Interactive mode (recommended — your SA will walk you through each step)
+wal-e assess --profile wal-assessment --interactive
+
+# Or quick scan (generates all reports automatically)
+wal-e assess --profile wal-assessment --output ./my-assessment --format all
+```
+
+### Step 5: Review Results with Your SA
+
+Your SA will help you interpret the results. Share the output folder or screen share.
+
+The assessment generates these files in the output directory:
+
+| File | Description |
+|------|-------------|
+| `WAL_Assessment_Readout.md` | Detailed assessment report (all 7 pillars) |
+| `WAL_Assessment_Scores.csv` | 129 best practices with scores and notes |
+| `WAL_Assessment_Presentation.pptx` | Executive readout deck (importable to Google Slides) |
+| `WAL_Assessment_Presentation.html` | Browser-based presentation |
+| `WAL_Assessment_Audit_Report.md` | Complete evidence trail of all API calls |
+
+### Step 6: Clean Up
+
+```bash
+# Revoke your PAT token immediately after the assessment:
+# Workspace > Settings > Developer > Access tokens > Revoke
+
+# Delete the CLI profile:
+# Edit ~/.databrickscfg and remove the [wal-assessment] section
+
+# Optionally delete local assessment files after sharing with your SA
+```
+
+---
+
+## For SAs: Guiding the Customer
+
+As the SA, you don't need access to the customer's workspace. Your role is to guide them through the process.
+
+### SA Workflow
+
+```
+1. Pre-Call Setup
+   - Send the customer the Quick Reference Card (see ACCESS_GUIDE.md)
+   - Ask them to install Python 3.10+ and Databricks CLI before the call
+   - Schedule a 30-minute screen share session
+
+2. On the Call (Customer shares their screen)
+   - Guide them through git clone and pip install
+   - Walk them through 'databricks configure' with their own workspace URL
+   - Have them create a short-lived PAT token (1 day lifetime)
+   - Run 'wal-e validate' to confirm access
+   - Run 'wal-e assess --interactive' together
+
+3. Post-Assessment
+   - Ask the customer to share the output folder (or screen share the results)
+   - Walk through the readout deck together
+   - Discuss findings and remediation priorities
+   - Customer revokes their PAT token
+```
+
+### Showing the Setup Guide to Customers
+
+```bash
+# Print the customer-facing setup guide (share your screen or send the output)
 wal-e setup --guide
+```
 
-# 2. Validate access before full scan
-wal-e validate
+---
 
-# 3. Run full assessment
-wal-e assess --interactive
+## Advanced CLI Options
 
-# 4. Generate readout deck
-wal-e report --format all
+```bash
+# Specify output formats
+wal-e assess --format pptx --format html --format csv
+
+# Set a custom timeout (seconds, default: 600, use 0 for no limit)
+wal-e assess --timeout 0
+
+# Run in background (useful inside AI coding tools)
+wal-e assess --run-in-background --output ./assessment-results
+
+# Re-generate reports from cached assessment data
+wal-e report --input ./my-assessment --format all
 ```
 
 ---
@@ -138,110 +201,43 @@ WAL-E integrates natively with the [Databricks AI Dev Kit](https://github.com/da
 ### As a Cursor Skill
 
 ```bash
-# Install WAL-E skill into your Cursor project
 ./install.sh --cursor
 ```
 
-Then in Cursor Agent, simply ask:
+Then in Cursor Agent, ask:
 > "Run a Well-Architected Lakehouse assessment on my workspace"
-
-Cursor reads the `.cursor/rules/wal-e-assessment.md` rule file automatically.
 
 ### As a Claude Code Skill
 
 ```bash
-# Install WAL-E skill for Claude Code
 ./install.sh --claude
 ```
 
-Then open Claude Code inside the `wal-e/` directory and ask naturally (no slash command):
+Then ask naturally in Claude Code (no slash command):
 > "Run a WAL-E assessment on my Databricks workspace and generate a readout deck"
 
-Claude Code automatically reads `CLAUDE.md` from the project root and knows how to use WAL-E.
+> **Claude Code Timeout:** Claude Code's Bash tool has a max timeout of 10 minutes.
+> Use `wal-e assess --timeout 0` for no limit, or `--run-in-background` for async execution.
 
-> **Important: Claude Code Timeout**
->
-> Claude Code's Bash tool has a **maximum timeout of 10 minutes** (600,000ms) and defaults to 5 minutes.
-> WAL-E assessments typically complete in 2-5 minutes, but large workspaces or slow networks may take longer.
->
-> WAL-E provides built-in options to handle this:
->
-> ```bash
-> # Option 1: Use the maximum WAL-E timeout (default: 600s = 10 min)
-> wal-e assess --timeout 600
->
-> # Option 2: Disable timeout entirely
-> wal-e assess --timeout 0
->
-> # Option 3: Run in background (returns immediately, writes results when done)
-> wal-e assess --run-in-background
-> # Check progress:
-> cat ./wal-e-assessment/.wal-e-cache/bg.status
-> # When complete, regenerate reports if needed:
-> wal-e report --input ./wal-e-assessment --format all
->
-> # Option 4: Run directly in a separate terminal (no AI tool timeout)
-> wal-e assess --profile DEFAULT --output ./wal-e-assessment --format all
-> ```
->
-> Then ask Claude Code to analyze the results:
-> > "Read the assessment results in ./wal-e-assessment and summarize the findings"
-
-### As an MCP Server (AI Dev Kit)
-
-Register WAL-E as an MCP server so AI assistants can call assessment tools directly:
+### As an MCP Server
 
 ```bash
-# Option 1: Use the installer
+# Use the installer
 ./install.sh --mcp
 
-# Option 2: Register manually with Claude Code
-claude mcp add-json wal-e "{
-  \"command\": \"python3\",
-  \"args\": [\"$(pwd)/mcp/server.py\"]
-}"
-
-# Option 3: Databricks LLM wrapper
-llm agent configure mcp
-# Then add: {"wal-e": {"command": "python3", "args": ["<path-to-wal-e>/mcp/server.py"]}}
+# Or register manually
+claude mcp add-json wal-e '{"command": "python3", "args": ["'$(pwd)'/mcp/server.py"]}'
 ```
 
-After registering, restart Claude Code. The following MCP tools become available:
-
-| Tool | Description |
-|------|-------------|
-| `wal_e_assess` | Run full assessment (collect + score + report) |
-| `wal_e_collect` | Collect workspace data only (no scoring) |
-| `wal_e_score` | Score from cached collected data |
-| `wal_e_report` | Generate reports from cached data (md/csv/html/pptx/audit) |
-| `wal_e_validate` | Validate workspace access and connectivity |
-
-Then ask naturally:
-> "Use wal_e_assess to run a full assessment on my DEFAULT workspace"
+Available MCP tools: `wal_e_assess`, `wal_e_collect`, `wal_e_score`, `wal_e_report`, `wal_e_validate`
 
 ---
 
 ## Access Requirements
 
-> **Full guide:** See [ACCESS_GUIDE.md](ACCESS_GUIDE.md) for the complete access reference including customer-facing instructions, troubleshooting, and security assurances.
+> **Full guide:** See [ACCESS_GUIDE.md](ACCESS_GUIDE.md) for the complete self-service setup guide, permissions reference, and customer-facing instructions.
 
-WAL-E needs **read-only** access to the target workspace. It makes **21 HTTP GET API calls** and **zero write calls**. No data is read from tables -- only workspace metadata and configuration.
-
-### Quick Setup (3 minutes)
-
-```bash
-# 1. Customer creates a short-lived PAT token (as workspace admin)
-#    Workspace > Settings > Developer > Access tokens > Generate
-#    Lifetime: 1 day | Description: "WAL-E Assessment"
-
-# 2. SA configures the CLI profile
-databricks configure --profile customer-assessment \
-  --host https://customer-workspace.cloud.databricks.com \
-  --token
-
-# 3. Validate before running
-wal-e validate --profile customer-assessment
-```
+WAL-E needs **read-only** access to the workspace. It makes **21 HTTP GET API calls** and **zero write calls**.
 
 ### Permissions by Assessment Depth
 
@@ -254,18 +250,6 @@ wal-e validate --profile customer-assessment
 
 **Recommended:** Workspace admin + Metastore admin for a meaningful assessment.
 
-### API Endpoints Called (All Read-Only)
-
-| Category | Endpoints | Count | Admin Required? |
-|----------|-----------|:-----:|:---------------:|
-| **Authentication** | `auth describe`, `current-user me` | 2 | No |
-| **Unity Catalog** | `metastore_summary`, `catalogs`, `external-locations`, `storage-credentials` | 4 | Metastore admin for full list |
-| **Compute** | `clusters/list`, `sql/warehouses`, `cluster-policies/list`, `instance-pools/list` | 4 | Admin for all clusters |
-| **Security** | `workspace-conf`, `ip-access-lists`, `token/list` | 3 | **Yes** (workspace admin) |
-| **Operations** | `jobs/list`, `pipelines`, `serving-endpoints`, `repos`, `global-init-scripts`, `groups/list`, `secrets/list-scopes` | 7 | Admin for complete lists |
-| **Workspace** | `workspace/list` (root only) | 1 | Admin for full listing |
-| **Total** | | **21** | |
-
 ### What WAL-E Will NEVER Do
 
 - Read table data, file contents, or query results
@@ -275,41 +259,43 @@ wal-e validate --profile customer-assessment
 - Access secret values (only scope names)
 - Transmit data to any external service
 
-### Security for the Customer
-
-- All API calls use **HTTPS/TLS**
-- Assessment results are stored **locally on the SA's machine only**
-- A complete **audit trail** of every API call is provided as a deliverable
-- The PAT token can be **revoked immediately** after the assessment
-- Set token lifetime to **1 day** (assessment takes ~15 minutes)
-
-### Optional: System Tables for Deeper Analysis
-
-For cost, performance, and audit insights, customers can optionally grant SELECT on system tables:
-
-```sql
-GRANT SELECT ON SCHEMA system.billing TO `sa-user@databricks.com`;
-GRANT SELECT ON SCHEMA system.compute TO `sa-user@databricks.com`;
-GRANT SELECT ON SCHEMA system.query TO `sa-user@databricks.com`;
-GRANT SELECT ON SCHEMA system.access TO `sa-user@databricks.com`;
-```
-
-See [ACCESS_GUIDE.md](ACCESS_GUIDE.md) for the full list of system tables used and customer-facing copy-paste instructions.
-
 ---
 
-## Output Deliverables
+## Architecture
 
-WAL-E generates 6 deliverables in a single run:
+```
+                    +------------------+
+                    |     Customer     |
+                    | (runs on their   |
+                    |  own machine)    |
+                    +--------+---------+
+                             |
+                    +--------v---------+
+                    |    WAL-E Agent    |
+                    |  (CLI / Skill /  |
+                    |   MCP Server)    |
+                    +--------+---------+
+                             |
+              +--------------+--------------+
+              |              |              |
+     +--------v---+  +------v------+  +----v-------+
+     | Collectors  |  |  Scoring    |  | Reporters  |
+     | (23+ APIs)  |  |  Engine     |  | (5 formats)|
+     +--------+---+  +------+------+  +----+-------+
+              |              |              |
+     +--------v--------------v--------------v-------+
+     |       Customer's Databricks Workspace        |
+     |  (Unity Catalog, Clusters, Jobs, Security)   |
+     +----------------------------------------------+
+```
 
-| File | Description |
-|------|-------------|
-| `WAL_Assessment_Readout.md` | Detailed assessment report (all 7 pillars) |
-| `WAL_Assessment_Executive_Deck.md` | 15-slide executive summary |
-| `WAL_Assessment_Scores.csv` | Scored assessment tool (99 best practices) |
-| `WAL_Assessment_Presentation.html` | Browser-based presentation |
-| `WAL_Assessment_Presentation.pptx` | Google Slides / PowerPoint importable |
-| `WAL_Assessment_Audit_Report.md` | Complete evidence trail of all API calls |
+| Component | Path | Description |
+|-----------|------|-------------|
+| `src/wal_e/collectors/` | Data collection modules for each assessment area |
+| `src/wal_e/framework/` | WAL pillar definitions, best practices, scoring logic |
+| `src/wal_e/reporters/` | Report generators (MD, CSV, HTML, PPTX, Audit) |
+| `src/wal_e/core/` | Orchestration engine, config, cloud detection |
+| `mcp/` | MCP server for AI Dev Kit integration |
 
 ---
 
@@ -317,14 +303,14 @@ WAL-E generates 6 deliverables in a single run:
 
 | # | Pillar | Best Practices | Focus Areas |
 |---|--------|:--------------:|-------------|
-| 1 | Data & AI Governance | 12 | Unity Catalog, metadata, lineage, data quality |
+| 1 | Data & AI Governance | 15 | Unity Catalog, metadata, lineage, data quality |
 | 2 | Interoperability & Usability | 14 | Open formats, IaC, serverless, self-service |
-| 3 | Operational Excellence | 18 | CI/CD, MLOps, monitoring, environment isolation |
-| 4 | Security, Compliance & Privacy | 7 | IAM, encryption, network, compliance |
-| 5 | Reliability | 14 | ACID, auto-scaling, DR, backups |
-| 6 | Performance Efficiency | 19 | Serverless, data layout, caching, monitoring |
-| 7 | Cost Optimization | 15 | Resource selection, auto-scaling, tagging, monitoring |
-| | **Total** | **99** | |
+| 3 | Operational Excellence | 23 | CI/CD, MLOps, monitoring, environment isolation |
+| 4 | Security, Compliance & Privacy | 12 | IAM, SSO/SCIM, encryption, network, VPC |
+| 5 | Reliability | 19 | ACID, auto-scaling, DR, backups |
+| 6 | Performance Efficiency | 25 | Serverless, data layout, liquid clustering |
+| 7 | Cost Optimization | 20 | Spot/preemptible, reserved, tagging, budgets |
+| | **Total** | **129** | |
 
 ---
 
@@ -334,7 +320,6 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ### Areas for Contribution
 - Additional collectors (e.g., Databricks Apps, Clean Rooms, Marketplace)
-- Cloud-specific checks (AWS vs Azure vs GCP)
 - Custom scoring profiles per industry vertical
 - Additional output formats (PDF, Notion, Confluence)
 - System table query templates

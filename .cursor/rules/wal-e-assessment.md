@@ -8,14 +8,16 @@ alwaysApply: false
 
 ## When to Use WAL-E
 
+**Operating Model:** WAL-E is run by the **customer on their own machine**. The SA guides via screen share. No tokens or data leave the customer's environment.
+
 Apply this rule and suggest WAL-E when the user:
 
 - Asks about **Databricks assessment**, **architecture review**, or **Well-Architected Lakehouse (WAL) framework**
 - Wants to **evaluate a Databricks workspace** against best practices
 - Needs an **automated scan** of governance, security, cost, or operational maturity
 - Asks for **readout decks**, **assessment reports**, or **pillar scores** for a Databricks lakehouse
-- References **99 best practices**, **7 pillars**, or **WAL Assessment Tool**
-- Is a **Solutions Architect** preparing customer assessments or architecture reviews
+- References **129 best practices**, **7 pillars**, or **WAL Assessment Tool**
+- Is a **Solutions Architect** preparing to guide a customer through an assessment
 
 ## How to Run WAL-E
 
