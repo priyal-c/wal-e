@@ -21,26 +21,32 @@
 
 ### How It Works
 
-```mermaid
-flowchart LR
-    S1["1. Install WAL-E"]
-    S2["2. Create Token &\nConfigure CLI"]
-    S3["3. Validate\nAccess"]
-    S4["4. Run\nAssessment"]
-    S5["5. Review Results\nwith SA"]
-    S6["6. Revoke Token\n& Clean Up"]
-
-    S1 --> S2 --> S3 --> S4 --> S5 --> S6
-
-    style S1 fill:#E3F2FD,stroke:#1565C0,stroke-width:2px,color:#0D47A1
-    style S2 fill:#E3F2FD,stroke:#1565C0,stroke-width:2px,color:#0D47A1
-    style S3 fill:#E3F2FD,stroke:#1565C0,stroke-width:2px,color:#0D47A1
-    style S4 fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,color:#1B5E20
-    style S5 fill:#FFF3E0,stroke:#E65100,stroke-width:2px,color:#BF360C
-    style S6 fill:#F3E5F5,stroke:#6A1B9A,stroke-width:2px,color:#4A148C
 ```
-
-> **You** run everything on **your machine**. Your SA joins via screen share and guides each step. No tokens or data leave your environment.
+                    +--------------------+
+                    |   Customer (You)   |
+                    |  SA guides via     |
+                    |  screen share      |
+                    +--------+-----------+
+                             |
+                    +--------v-----------+
+                    |    WAL-E Agent      |
+                    |  (runs on YOUR     |
+                    |   machine only)    |
+                    +--------+-----------+
+                             |
+              +--------------+--------------+
+              |              |              |
+     +--------v---+  +------v------+  +----v-------+
+     | Collectors  |  |  Scoring    |  | Reporters  |
+     | (21 APIs)   |  |  Engine     |  | (5 formats)|
+     | read-only   |  | 129 checks  |  | stays local|
+     +--------+---+  +------+------+  +----+-------+
+              |              |              |
+     +--------v--------------v--------------v-------+
+     |         Your Databricks Workspace            |
+     |  (Unity Catalog, Clusters, Jobs, Security)   |
+     +----------------------------------------------+
+```
 
 ### Key Features
 
