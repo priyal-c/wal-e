@@ -1737,6 +1737,34 @@ class ScoredBestPractice:
     principle: str
     score: int
     finding_notes: str
+    verified: bool = True  # False = unverifiable from available data
+
+
+# Patterns in finding_notes that indicate the score is a default, not evidence-based
+_UNVERIFIABLE_PATTERNS = (
+    "not verifiable",
+    "not fully verifiable",
+    "not fully verified",
+    "cannot verify",
+    "cannot confirm",
+    "cannot assess",
+    "cannot determine",
+    "requires --deep",
+    "account-level and not verifiable",
+    "not detectable via api",
+    "not detectable from api",
+)
+
+
+def _is_verified(score: int, notes: str) -> bool:
+    """Determine if a scored BP is based on real evidence or is a default."""
+    if score in (0, 2):
+        return True
+    notes_lower = notes.lower()
+    for pattern in _UNVERIFIABLE_PATTERNS:
+        if pattern in notes_lower:
+            return False
+    return True
 
 
 @dataclass
@@ -1746,10 +1774,14 @@ class ScoredAssessment:
     pillar_scores: dict[str, float] = field(default_factory=dict)
     best_practice_scores: list[ScoredBestPractice] = field(default_factory=list)
     overall_score: float = 0.0
+    verified_score: float = 0.0  # Score from verified BPs only
+    coverage_pct: float = 0.0  # % of BPs that are verified
     maturity_level: str = "Beginning"
     assessment_date: str = ""
     workspace_host: str = ""
     cloud_provider: str = ""
+    pillar_verified_scores: dict[str, float] = field(default_factory=dict)
+    pillar_coverage: dict[str, float] = field(default_factory=dict)
 
 
 def _maturity_from_score(avg: float) -> str:
@@ -1780,19 +1812,15 @@ class ScoringEngine:
         """
         Score all best practices against collected data.
 
-        Args:
-            collected_data: Dict from collectors (keyed by collector name or flattened).
-            workspace_host: Optional workspace host for the assessment.
-
-        Returns:
-            ScoredAssessment with pillar_scores, best_practice_scores, overall_score,
-            maturity_level, assessment_date, and workspace_host.
+        Returns ScoredAssessment with both overall (all BPs) and verified (evidence-based only)
+        scores. Verified scores exclude BPs where the API couldn't determine a real answer.
         """
-        # Flatten if top-level keys look like collector names
         flat_data = self._prepare_data(collected_data)
 
         scored_bps: list[ScoredBestPractice] = []
-        pillar_totals: dict[str, list[int]] = {}
+        pillar_all: dict[str, list[int]] = {}
+        pillar_verified: dict[str, list[int]] = {}
+        pillar_bp_count: dict[str, int] = {}
 
         for bp in self._all_bps.values():
             fn = SCORING_REGISTRY.get(bp.id)
@@ -1800,6 +1828,8 @@ class ScoringEngine:
                 score, notes = fn(flat_data)
             else:
                 score, notes = 0, "No scoring function defined."
+
+            verified = _is_verified(score, notes)
             scored_bps.append(
                 ScoredBestPractice(
                     name=bp.name,
@@ -1807,25 +1837,49 @@ class ScoringEngine:
                     principle=bp.principle,
                     score=score,
                     finding_notes=notes,
+                    verified=verified,
                 )
             )
-            if bp.pillar not in pillar_totals:
-                pillar_totals[bp.pillar] = []
-            pillar_totals[bp.pillar].append(score)
 
+            pillar_all.setdefault(bp.pillar, []).append(score)
+            pillar_bp_count[bp.pillar] = pillar_bp_count.get(bp.pillar, 0) + 1
+            if verified:
+                pillar_verified.setdefault(bp.pillar, []).append(score)
+
+        # All-BP scores (backward compatible)
         pillar_scores = {
             p: sum(scores) / len(scores) if scores else 0.0
-            for p, scores in pillar_totals.items()
+            for p, scores in pillar_all.items()
         }
         all_scores = [sbp.score for sbp in scored_bps]
         overall = sum(all_scores) / len(all_scores) if all_scores else 0.0
-        maturity = _maturity_from_score(overall)
+
+        # Verified-only scores
+        verified_bps = [sbp for sbp in scored_bps if sbp.verified]
+        verified_scores_list = [sbp.score for sbp in verified_bps]
+        verified_overall = sum(verified_scores_list) / len(verified_scores_list) if verified_scores_list else 0.0
+        coverage = (len(verified_bps) / len(scored_bps) * 100) if scored_bps else 0.0
+
+        pillar_v_scores = {
+            p: sum(scores) / len(scores) if scores else 0.0
+            for p, scores in pillar_verified.items()
+        }
+        pillar_cov = {
+            p: (len(pillar_verified.get(p, [])) / pillar_bp_count[p] * 100) if pillar_bp_count.get(p) else 0.0
+            for p in pillar_all
+        }
+
+        maturity = _maturity_from_score(verified_overall)
 
         return ScoredAssessment(
             pillar_scores=pillar_scores,
             best_practice_scores=scored_bps,
             overall_score=round(overall, 2),
+            verified_score=round(verified_overall, 2),
+            coverage_pct=round(coverage, 1),
             maturity_level=maturity,
+            pillar_verified_scores=pillar_v_scores,
+            pillar_coverage=pillar_cov,
             assessment_date=datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
             workspace_host=workspace_host,
             cloud_provider=collected_data.get("_cloud_provider", "unknown"),

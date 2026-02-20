@@ -42,3 +42,4 @@ token.json
 # Environment files
 .env
 .env.local
+wal-e-assessment/

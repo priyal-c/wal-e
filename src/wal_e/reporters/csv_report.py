@@ -66,6 +66,7 @@ class CSVReporter(BaseReporter):
                         continue
                     score_val = bp.get("score", 0)
                     notes = str(bp.get("finding_notes") or "")
+                    verified = bp.get("verified", True)
                     rows.append({
                         "Pillar": "",
                         "Principle": "",
@@ -73,6 +74,7 @@ class CSVReporter(BaseReporter):
                         "Relevant (Y/N)": "Y",
                         "Score (0-2)": str(int(score_val)) if score_val is not None else "",
                         "Finding/Notes": notes,
+                        "Verified": "Y" if verified else "N",
                     })
 
             # Empty separator between pillars
@@ -108,6 +110,7 @@ class CSVReporter(BaseReporter):
                     "Relevant (Y/N)",
                     "Score (0-2)",
                     "Finding/Notes",
+                    "Verified",
                     "Cloud",
                 ],
             )

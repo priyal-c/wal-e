@@ -55,24 +55,61 @@ def _progress_spinner(quiet: bool, stop_event: list) -> None:
         time.sleep(0.08)
 
 
-def _print_summary_table(pillar_scores: dict[str, float], overall: float, maturity: str, quiet: bool) -> None:
+def _print_summary_table(
+    pillar_scores: dict[str, float],
+    overall: float,
+    maturity: str,
+    quiet: bool,
+    verified_score: float = 0.0,
+    coverage_pct: float = 0.0,
+    pillar_verified_scores: dict[str, float] | None = None,
+    pillar_coverage: dict[str, float] | None = None,
+) -> None:
     if quiet:
         return
     from wal_e.reporters.base import PILLAR_DISPLAY_NAMES, PILLAR_ORDER
+
+    pv = pillar_verified_scores or {}
+    pc = pillar_coverage or {}
+    has_verified = bool(pv)
+
     print(f"\n\n{C.BOLD}{C.GREEN}✓ Assessment Complete{C.RESET}\n")
-    print(f"{C.BOLD}Pillar Scores{C.RESET}")
-    print("─" * 58)
+
+    if has_verified:
+        header = f"  {'Pillar':<40} {'Verified Score':>15} {'Coverage':>10}"
+        print(f"{C.BOLD}{header}{C.RESET}")
+    else:
+        print(f"{C.BOLD}Pillar Scores{C.RESET}")
+    print("─" * 70)
+
     for pillar in PILLAR_ORDER:
-        score = pillar_scores.get(pillar, 0)
-        pct = (score / 2.0) * 100 if score is not None else 0
         display = PILLAR_DISPLAY_NAMES.get(pillar, pillar)
-        bar_len = 20
-        filled = int(bar_len * pct / 100)
-        bar = f"{C.GREEN}█{C.RESET}" * filled + f"{C.DIM}░{C.RESET}" * (bar_len - filled)
-        print(f"  {display[:40]:<40} {bar} {pct:.0f}%")
-    print("─" * 58)
-    overall_pct = (overall / 2.0) * 100
-    print(f"  {C.BOLD}Overall{C.RESET}{'':<35} {overall_pct:.0f}%  ({maturity})")
+        if has_verified:
+            v_score = pv.get(pillar, 0)
+            v_pct = (v_score / 2.0) * 100 if v_score else 0
+            cov = pc.get(pillar, 0)
+            bar_len = 15
+            filled = int(bar_len * v_pct / 100)
+            bar = f"{C.GREEN}█{C.RESET}" * filled + f"{C.DIM}░{C.RESET}" * (bar_len - filled)
+            cov_color = C.GREEN if cov >= 60 else (C.YELLOW if cov >= 40 else C.RED)
+            print(f"  {display[:40]:<40} {bar} {v_pct:>3.0f}%   {cov_color}{cov:>4.0f}%{C.RESET}")
+        else:
+            score = pillar_scores.get(pillar, 0)
+            pct = (score / 2.0) * 100 if score is not None else 0
+            bar_len = 20
+            filled = int(bar_len * pct / 100)
+            bar = f"{C.GREEN}█{C.RESET}" * filled + f"{C.DIM}░{C.RESET}" * (bar_len - filled)
+            print(f"  {display[:40]:<40} {bar} {pct:.0f}%")
+
+    print("─" * 70)
+
+    if has_verified:
+        v_pct = (verified_score / 2.0) * 100
+        print(f"  {C.BOLD}Verified Score{C.RESET}{'':<28} {v_pct:.0f}%  ({maturity})")
+        print(f"  {C.DIM}Coverage: {coverage_pct:.0f}% of best practices had enough data to verify{C.RESET}")
+    else:
+        overall_pct = (overall / 2.0) * 100
+        print(f"  {C.BOLD}Overall{C.RESET}{'':<35} {overall_pct:.0f}%  ({maturity})")
     print()
 
 
@@ -108,7 +145,7 @@ def _scored_to_reporter_format(scored: Any) -> dict:
     best_practice_scores = []
     for bp in scored.best_practice_scores:
         if hasattr(bp, "name"):
-            best_practice_scores.append({"name": bp.name, "pillar": bp.pillar, "principle": bp.principle, "score": float(bp.score), "finding_notes": bp.finding_notes})
+            best_practice_scores.append({"name": bp.name, "pillar": bp.pillar, "principle": bp.principle, "score": float(bp.score), "finding_notes": bp.finding_notes, "verified": getattr(bp, "verified", True)})
         elif isinstance(bp, dict):
             best_practice_scores.append(bp)
 
@@ -116,10 +153,14 @@ def _scored_to_reporter_format(scored: Any) -> dict:
         "pillar_scores": pillar_scores,
         "best_practice_scores": best_practice_scores,
         "overall_score": scored.overall_score,
+        "verified_score": getattr(scored, "verified_score", scored.overall_score),
+        "coverage_pct": getattr(scored, "coverage_pct", 100.0),
         "maturity_level": scored.maturity_level,
         "assessment_date": scored.assessment_date,
         "workspace_host": scored.workspace_host or "Unknown",
         "cloud_provider": getattr(scored, "cloud_provider", "") or "unknown",
+        "pillar_verified_scores": getattr(scored, "pillar_verified_scores", pillar_scores),
+        "pillar_coverage": getattr(scored, "pillar_coverage", {}),
     }
 
 
@@ -229,7 +270,11 @@ def _run_assess_foreground(args: argparse.Namespace, config: Any, engine: Any) -
                     print(f"{C.RED}Failed to generate {fmt}:{C.RESET} {e}")
 
     _save_cached_assessment(out_path, result, scored)
-    _print_summary_table(scored.pillar_scores, scored.overall_score, scored.maturity_level, args.quiet)
+    _print_summary_table(
+        scored.pillar_scores, scored.overall_score, scored.maturity_level, args.quiet,
+        verified_score=scored.verified_score, coverage_pct=scored.coverage_pct,
+        pillar_verified_scores=scored.pillar_verified_scores, pillar_coverage=scored.pillar_coverage,
+    )
     if not args.quiet and generated:
         print(f"{C.BOLD}Reports written to:{C.RESET}")
         for g in generated:
@@ -274,7 +319,8 @@ def _run_assess_background(args: argparse.Namespace, config: Any, engine: Any) -
                 "pillar_scores": dict(scored.pillar_scores) if scored.pillar_scores else {},
                 "best_practice_scores": [
                     {"name": bp.name, "pillar": bp.pillar, "principle": bp.principle,
-                     "score": float(bp.score), "finding_notes": bp.finding_notes}
+                     "score": float(bp.score), "finding_notes": bp.finding_notes,
+                     "verified": getattr(bp, "verified", True)}
                     for bp in scored.best_practice_scores
                 ],
                 "overall_score": scored.overall_score,
@@ -457,7 +503,11 @@ def _interactive_assess(args: argparse.Namespace, config: Any, engine: Any) -> b
             except Exception:
                 pass
     _save_cached_assessment(out_path, result, scored)
-    _print_summary_table(scored.pillar_scores, scored.overall_score, scored.maturity_level, False)
+    _print_summary_table(
+        scored.pillar_scores, scored.overall_score, scored.maturity_level, False,
+        verified_score=scored.verified_score, coverage_pct=scored.coverage_pct,
+        pillar_verified_scores=scored.pillar_verified_scores, pillar_coverage=scored.pillar_coverage,
+    )
     return True
 
 
