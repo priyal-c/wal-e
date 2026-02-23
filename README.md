@@ -140,6 +140,33 @@ The assessment generates these files in the output directory:
 | `WAL_Assessment_Remediation_Guide.docx` | Detailed remediation instructions with cloud-specific doc links |
 | `WAL_Assessment_Audit_Report.md` | Complete evidence trail of all API calls |
 
+### Understanding the Scores
+
+WAL-E reports two key metrics for each pillar and overall:
+
+| Metric | What It Means |
+|--------|--------------|
+| **Verified Score** | The assessment score calculated *only* from best practices where WAL-E had enough data to make a real determination. A score of 0 (not implemented) or 2 (fully implemented) is always verified. A score of 1 is verified only when WAL-E found real evidence (e.g., "no cluster policies found"), not when it defaulted to "cannot verify from API." |
+| **Coverage** | The percentage of best practices where WAL-E had real evidence to score. Higher coverage means more confidence in the verified score. Use `--deep` mode to increase coverage by querying system tables. |
+
+**Example reading:**
+
+```
+Performance Efficiency     █████████████░░  89%    64%
+                           ^verified score         ^coverage
+```
+
+This means: of the performance BPs that WAL-E could verify (64%), the workspace scores 89%. The remaining 36% need `--deep` scan or manual verification.
+
+**Maturity level** is derived from the verified score:
+
+| Verified Score | Maturity Level |
+|:--------------:|---------------|
+| 88-100% | Optimized |
+| 63-87% | Established |
+| 25-62% | Developing |
+| 0-24% | Beginning |
+
 ### Step 6: Clean Up
 
 ```bash
