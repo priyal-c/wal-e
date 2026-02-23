@@ -114,41 +114,16 @@ def _print_summary_table(
 
 
 def _print_unverified_bps(scored_bps: list[dict], quiet: bool) -> None:
-    """Print unverified BPs grouped by pillar so the customer can take action."""
+    """Print a short footnote about unverified BPs, directing to reports for details."""
     if quiet:
         return
-    from wal_e.reporters.base import PILLAR_DISPLAY_NAMES, PILLAR_ORDER
-    from wal_e.framework.scoring import _is_verified
 
-    unverified = []
-    for bp in scored_bps:
-        score = bp.get("score", 0) if isinstance(bp, dict) else getattr(bp, "score", 0)
-        notes = bp.get("finding_notes", "") if isinstance(bp, dict) else getattr(bp, "finding_notes", "")
-        verified = bp.get("verified", True) if isinstance(bp, dict) else getattr(bp, "verified", True)
-        if not verified:
-            pillar = bp.get("pillar", "") if isinstance(bp, dict) else getattr(bp, "pillar", "")
-            name = bp.get("name", "") if isinstance(bp, dict) else getattr(bp, "name", "")
-            unverified.append({"pillar": pillar, "name": name, "notes": notes})
-
-    if not unverified:
+    count = sum(1 for bp in scored_bps if not (bp.get("verified", True) if isinstance(bp, dict) else getattr(bp, "verified", True)))
+    if not count:
         return
 
-    print(f"{C.BOLD}Requires Manual Verification ({len(unverified)} best practices){C.RESET}")
-    print(f"{C.DIM}These could not be assessed from available data. Review with your SA.{C.RESET}")
-    print("─" * 70)
-
-    current_pillar = ""
-    for bp in sorted(unverified, key=lambda x: (PILLAR_ORDER.index(x["pillar"]) if x["pillar"] in PILLAR_ORDER else 99, x["name"])):
-        pillar_display = PILLAR_DISPLAY_NAMES.get(bp["pillar"], bp["pillar"])
-        if pillar_display != current_pillar:
-            current_pillar = pillar_display
-            print(f"\n  {C.BLUE}{current_pillar}{C.RESET}")
-        reason = bp["notes"][:70] if bp["notes"] else "Not verifiable from API"
-        print(f"    {C.YELLOW}?{C.RESET} {bp['name'][:35]:<35s}  {C.DIM}{reason}{C.RESET}")
-
-    print()
-    print(f"  {C.DIM}To increase coverage: use --deep, ensure workspace admin access,{C.RESET}")
-    print(f"  {C.DIM}and grant SELECT on system.* schemas.{C.RESET}")
+    print(f"  {C.YELLOW}Note:{C.RESET} {count} best practices could not be automatically verified.")
+    print(f"  {C.DIM}See the Remediation Guide (DOCX) or Readout (MD) for the full list and how to increase coverage.{C.RESET}")
     print()
 
 
