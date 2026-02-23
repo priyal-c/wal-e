@@ -15,6 +15,7 @@ from .csv_report import CSVReporter
 from .html_deck import HTMLDeckReporter
 from .pptx_deck import PPTXDeckReporter
 from .audit_log import AuditLogReporter
+from .docx_remediation import DocxRemediationReporter
 
 __all__ = [
     "BaseReporter",
@@ -28,4 +29,5 @@ __all__ = [
     "HTMLDeckReporter",
     "PPTXDeckReporter",
     "AuditLogReporter",
+    "DocxRemediationReporter",
 ]

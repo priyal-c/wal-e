@@ -179,7 +179,7 @@ def _save_cached_assessment(out_path: Path, result: Any, scored: Any) -> None:
 def _run_assess_foreground(args: argparse.Namespace, config: Any, engine: Any) -> int:
     """Run the assessment in the foreground (default mode)."""
     from wal_e.framework.scoring import ScoringEngine
-    from wal_e.reporters import AuditLogReporter, CSVReporter, HTMLDeckReporter, MarkdownReporter, PPTXDeckReporter
+    from wal_e.reporters import AuditLogReporter, CSVReporter, DocxRemediationReporter, HTMLDeckReporter, MarkdownReporter, PPTXDeckReporter
 
     stop_spinner: list[bool] = [False]
 
@@ -253,11 +253,11 @@ def _run_assess_foreground(args: argparse.Namespace, config: Any, engine: Any) -
 
     out_path = Path(args.output)
     out_path.mkdir(parents=True, exist_ok=True)
-    formats = args.format or ["md", "csv", "html", "pptx", "audit"]
+    formats = args.format or ["md", "csv", "html", "pptx", "audit", "docx"]
     if "all" in formats:
-        formats = ["md", "csv", "html", "pptx", "audit"]
+        formats = ["md", "csv", "html", "pptx", "audit", "docx"]
 
-    reporters_map = {"md": MarkdownReporter(), "csv": CSVReporter(), "html": HTMLDeckReporter(), "pptx": PPTXDeckReporter(), "audit": AuditLogReporter()}
+    reporters_map = {"md": MarkdownReporter(), "csv": CSVReporter(), "html": HTMLDeckReporter(), "pptx": PPTXDeckReporter(), "audit": AuditLogReporter(), "docx": DocxRemediationReporter()}
     generated: list[str] = []
     for fmt in formats:
         r = reporters_map.get(fmt)
@@ -300,7 +300,7 @@ def _run_assess_background(args: argparse.Namespace, config: Any, engine: Any) -
         from wal_e.core.config import WalEConfig as _Cfg
         from wal_e.core.engine import AssessmentEngine as _Eng
         from wal_e.framework.scoring import ScoringEngine as _Sc
-        from wal_e.reporters import AuditLogReporter, CSVReporter, HTMLDeckReporter, MarkdownReporter, PPTXDeckReporter
+        from wal_e.reporters import AuditLogReporter, CSVReporter, DocxRemediationReporter, HTMLDeckReporter, MarkdownReporter, PPTXDeckReporter
 
         _out = Path(output)
         _out.mkdir(parents=True, exist_ok=True)
@@ -337,10 +337,10 @@ def _run_assess_background(args: argparse.Namespace, config: Any, engine: Any) -
                         cmd_str = " ".join(ae.command) if isinstance(ae.command, list) else str(ae.command)
                         audit_entries.append({"command": cmd_str, "output": getattr(ae, "raw_output", ""), "timestamp": "", "duration": getattr(ae, "duration_seconds", 0)})
 
-            fmts = formats_list or ["md", "csv", "html", "pptx", "audit"]
+            fmts = formats_list or ["md", "csv", "html", "pptx", "audit", "docx"]
             if "all" in fmts:
-                fmts = ["md", "csv", "html", "pptx", "audit"]
-            reporters_map = {"md": MarkdownReporter(), "csv": CSVReporter(), "html": HTMLDeckReporter(), "pptx": PPTXDeckReporter(), "audit": AuditLogReporter()}
+                fmts = ["md", "csv", "html", "pptx", "audit", "docx"]
+            reporters_map = {"md": MarkdownReporter(), "csv": CSVReporter(), "html": HTMLDeckReporter(), "pptx": PPTXDeckReporter(), "audit": AuditLogReporter(), "docx": DocxRemediationReporter()}
             for fmt in fmts:
                 r = reporters_map.get(fmt)
                 if r:
@@ -444,7 +444,7 @@ def _run_assess(args: argparse.Namespace) -> int:
     config = WalEConfig(
         profile_name=args.profile,
         output_dir=args.output,
-        formats=args.format or ["md", "csv", "html", "pptx", "audit"],
+        formats=args.format or ["md", "csv", "html", "pptx", "audit", "docx"],
         deep_scan=deep,
         warehouse_id=wh_id,
     )
@@ -466,7 +466,7 @@ def _run_assess(args: argparse.Namespace) -> int:
 
 def _interactive_assess(args: argparse.Namespace, config: Any, engine: Any) -> bool:
     from wal_e.framework.scoring import ScoringEngine
-    from wal_e.reporters import AuditLogReporter, CSVReporter, HTMLDeckReporter, MarkdownReporter, PPTXDeckReporter
+    from wal_e.reporters import AuditLogReporter, CSVReporter, DocxRemediationReporter, HTMLDeckReporter, MarkdownReporter, PPTXDeckReporter
 
     _print_banner(False)
     print(f"{C.BOLD}Interactive WAL-E Assessment{C.RESET}\n")
@@ -491,10 +491,10 @@ def _interactive_assess(args: argparse.Namespace, config: Any, engine: Any) -> b
     audit_entries = _convert_audit_entries(result.raw_responses)
     out_path = Path(args.output)
     out_path.mkdir(parents=True, exist_ok=True)
-    formats = args.format or ["md", "csv", "html", "pptx", "audit"]
+    formats = args.format or ["md", "csv", "html", "pptx", "audit", "docx"]
     if "all" in formats:
-        formats = ["md", "csv", "html", "pptx", "audit"]
-    reporters_map = {"md": MarkdownReporter(), "csv": CSVReporter(), "html": HTMLDeckReporter(), "pptx": PPTXDeckReporter(), "audit": AuditLogReporter()}
+        formats = ["md", "csv", "html", "pptx", "audit", "docx"]
+    reporters_map = {"md": MarkdownReporter(), "csv": CSVReporter(), "html": HTMLDeckReporter(), "pptx": PPTXDeckReporter(), "audit": AuditLogReporter(), "docx": DocxRemediationReporter()}
     for fmt in formats:
         r = reporters_map.get(fmt)
         if r:
@@ -685,7 +685,7 @@ def _run_setup(args: argparse.Namespace) -> int:
 
 
 def _run_report(args: argparse.Namespace) -> int:
-    from wal_e.reporters import AuditLogReporter, CSVReporter, HTMLDeckReporter, MarkdownReporter, PPTXDeckReporter
+    from wal_e.reporters import AuditLogReporter, CSVReporter, DocxRemediationReporter, HTMLDeckReporter, MarkdownReporter, PPTXDeckReporter
 
     _print_banner(args.quiet)
     inp = Path(args.input)
@@ -724,10 +724,10 @@ def _run_report(args: argparse.Namespace) -> int:
         "cloud_provider": scored_dict.get("cloud_provider", "unknown"),
     }
 
-    formats = args.format or ["md", "csv", "html", "pptx", "audit"]
+    formats = args.format or ["md", "csv", "html", "pptx", "audit", "docx"]
     if "all" in formats:
-        formats = ["md", "csv", "html", "pptx", "audit"]
-    reporters_map = {"md": MarkdownReporter(), "csv": CSVReporter(), "html": HTMLDeckReporter(), "pptx": PPTXDeckReporter(), "audit": AuditLogReporter()}
+        formats = ["md", "csv", "html", "pptx", "audit", "docx"]
+    reporters_map = {"md": MarkdownReporter(), "csv": CSVReporter(), "html": HTMLDeckReporter(), "pptx": PPTXDeckReporter(), "audit": AuditLogReporter(), "docx": DocxRemediationReporter()}
 
     for fmt in formats:
         r = reporters_map.get(fmt)
@@ -754,7 +754,7 @@ def main() -> int:
     assess_parser = subparsers.add_parser("assess", help="Run full WAL-E assessment")
     assess_parser.add_argument("--profile", default="DEFAULT", help="Databricks CLI profile (default: DEFAULT)")
     assess_parser.add_argument("-o", "--output", default="./wal-e-assessment", help="Output directory (default: ./wal-e-assessment)")
-    assess_parser.add_argument("--format", action="append", choices=["md", "csv", "html", "pptx", "audit", "all"], default=None, help="Output formats (default: all)")
+    assess_parser.add_argument("--format", action="append", choices=["md", "csv", "html", "pptx", "audit", "docx", "all"], default=None, help="Output formats (default: all). Use 'docx' for remediation guide.")
     assess_parser.add_argument("--interactive", action="store_true", help="Interactive mode with step-by-step prompts")
     assess_parser.add_argument("--quiet", action="store_true", help="Suppress progress output")
     assess_parser.add_argument("--timeout", type=int, default=600, metavar="SECONDS",
@@ -785,7 +785,7 @@ def main() -> int:
 
     report_parser = subparsers.add_parser("report", help="Re-generate reports from cached data")
     report_parser.add_argument("--input", "-i", default="./wal-e-assessment", help="Input directory with cached assessment data")
-    report_parser.add_argument("--format", action="append", choices=["md", "csv", "html", "pptx", "audit", "all"], default=None, help="Output formats")
+    report_parser.add_argument("--format", action="append", choices=["md", "csv", "html", "pptx", "audit", "docx", "all"], default=None, help="Output formats. Use 'docx' for remediation guide.")
     report_parser.add_argument("--quiet", action="store_true", help="Suppress output")
     report_parser.set_defaults(func=_run_report)
 

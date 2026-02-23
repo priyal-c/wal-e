@@ -137,6 +137,7 @@ The assessment generates these files in the output directory:
 | `WAL_Assessment_Scores.csv` | 140 best practices with scores and notes |
 | `WAL_Assessment_Presentation.pptx` | Executive readout deck (importable to Google Slides) |
 | `WAL_Assessment_Presentation.html` | Browser-based presentation |
+| `WAL_Assessment_Remediation_Guide.docx` | Detailed remediation instructions with cloud-specific doc links |
 | `WAL_Assessment_Audit_Report.md` | Complete evidence trail of all API calls |
 
 ### Step 6: Clean Up
