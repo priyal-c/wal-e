@@ -66,6 +66,9 @@ class MarkdownReporter(BaseReporter):
         # Remediation roadmap
         sections.append(self._render_remediation_roadmap(best_practice_scores))
 
+        # Unverified best practices
+        sections.append(self._render_unverified_bps(best_practice_scores))
+
         # Appendices
         sections.append(self._render_appendices(collected_data, audit_entries))
 
@@ -256,6 +259,42 @@ class MarkdownReporter(BaseReporter):
             display = self._pillar_display_name(bp.get("pillar", ""))
             lines.append(f"| Optimize: {bp.get('name', '')} | {display} | High | Medium |")
         lines.append("")
+        return "\n".join(lines)
+
+    def _render_unverified_bps(self, best_practice_scores: List[BestPracticeScore]) -> str:
+        """Render a section listing all BPs that WAL-E could not verify."""
+        unverified = [bp for bp in best_practice_scores if not bp.get("verified", True)]
+        if not unverified:
+            return ""
+
+        lines = [
+            "## Requires Manual Verification",
+            "",
+            f"The following **{len(unverified)} best practices** could not be automatically assessed "
+            "from the available API data or system tables. These require manual review by the customer "
+            "and SA together.",
+            "",
+            "| # | Pillar | Best Practice | Reason |",
+            "|---|--------|--------------|--------|",
+        ]
+
+        for i, bp in enumerate(sorted(unverified, key=lambda x: x.get("pillar", "")), 1):
+            pillar = self._pillar_display_name(bp.get("pillar", ""))
+            name = bp.get("name", "Unknown")
+            notes = bp.get("finding_notes", "Not verifiable from API")
+            lines.append(f"| {i} | {pillar} | {name} | {notes} |")
+
+        lines.append("")
+        lines.append("### How to Increase Coverage")
+        lines.append("")
+        lines.append("| Action | Impact |")
+        lines.append("|--------|--------|")
+        lines.append("| Run with **workspace admin** access | Unlocks security config settings |")
+        lines.append("| Run with **metastore admin** access | Unlocks full catalog and governance data |")
+        lines.append("| Use `--deep` mode with system tables | Adds 11 operational best practices (cost, performance, reliability, security) |")
+        lines.append("| Manual review with SA | Addresses process/organizational checks (compliance, shared responsibility, SIEM) |")
+        lines.append("")
+        lines.append("---")
         return "\n".join(lines)
 
     def _render_appendices(

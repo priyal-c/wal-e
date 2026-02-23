@@ -113,6 +113,45 @@ def _print_summary_table(
     print()
 
 
+def _print_unverified_bps(scored_bps: list[dict], quiet: bool) -> None:
+    """Print unverified BPs grouped by pillar so the customer can take action."""
+    if quiet:
+        return
+    from wal_e.reporters.base import PILLAR_DISPLAY_NAMES, PILLAR_ORDER
+    from wal_e.framework.scoring import _is_verified
+
+    unverified = []
+    for bp in scored_bps:
+        score = bp.get("score", 0) if isinstance(bp, dict) else getattr(bp, "score", 0)
+        notes = bp.get("finding_notes", "") if isinstance(bp, dict) else getattr(bp, "finding_notes", "")
+        verified = bp.get("verified", True) if isinstance(bp, dict) else getattr(bp, "verified", True)
+        if not verified:
+            pillar = bp.get("pillar", "") if isinstance(bp, dict) else getattr(bp, "pillar", "")
+            name = bp.get("name", "") if isinstance(bp, dict) else getattr(bp, "name", "")
+            unverified.append({"pillar": pillar, "name": name, "notes": notes})
+
+    if not unverified:
+        return
+
+    print(f"{C.BOLD}Requires Manual Verification ({len(unverified)} best practices){C.RESET}")
+    print(f"{C.DIM}These could not be assessed from available data. Review with your SA.{C.RESET}")
+    print("─" * 70)
+
+    current_pillar = ""
+    for bp in sorted(unverified, key=lambda x: (PILLAR_ORDER.index(x["pillar"]) if x["pillar"] in PILLAR_ORDER else 99, x["name"])):
+        pillar_display = PILLAR_DISPLAY_NAMES.get(bp["pillar"], bp["pillar"])
+        if pillar_display != current_pillar:
+            current_pillar = pillar_display
+            print(f"\n  {C.BLUE}{current_pillar}{C.RESET}")
+        reason = bp["notes"][:70] if bp["notes"] else "Not verifiable from API"
+        print(f"    {C.YELLOW}?{C.RESET} {bp['name'][:35]:<35s}  {C.DIM}{reason}{C.RESET}")
+
+    print()
+    print(f"  {C.DIM}To increase coverage: use --deep, ensure workspace admin access,{C.RESET}")
+    print(f"  {C.DIM}and grant SELECT on system.* schemas.{C.RESET}")
+    print()
+
+
 def _convert_audit_entries(raw_responses: dict[str, list]) -> list[dict]:
     from wal_e.collectors.base import AuditEntry as CollectorAuditEntry
 
@@ -275,6 +314,8 @@ def _run_assess_foreground(args: argparse.Namespace, config: Any, engine: Any) -
         verified_score=scored.verified_score, coverage_pct=scored.coverage_pct,
         pillar_verified_scores=scored.pillar_verified_scores, pillar_coverage=scored.pillar_coverage,
     )
+    bp_dicts = [{"pillar": bp.pillar, "name": bp.name, "score": bp.score, "finding_notes": bp.finding_notes, "verified": bp.verified} for bp in scored.best_practice_scores]
+    _print_unverified_bps(bp_dicts, args.quiet)
     if not args.quiet and generated:
         print(f"{C.BOLD}Reports written to:{C.RESET}")
         for g in generated:
@@ -508,6 +549,8 @@ def _interactive_assess(args: argparse.Namespace, config: Any, engine: Any) -> b
         verified_score=scored.verified_score, coverage_pct=scored.coverage_pct,
         pillar_verified_scores=scored.pillar_verified_scores, pillar_coverage=scored.pillar_coverage,
     )
+    bp_dicts = [{"pillar": bp.pillar, "name": bp.name, "score": bp.score, "finding_notes": bp.finding_notes, "verified": bp.verified} for bp in scored.best_practice_scores]
+    _print_unverified_bps(bp_dicts, False)
     return True
 
 

@@ -590,6 +590,7 @@ class DocxRemediationReporter(BaseReporter):
                 continue
             self._add_pillar_section(doc, pillar, issues, cloud, cloud_short)
 
+        self._add_unverified_section(doc, bps, cloud_short)
         self._add_appendix(doc, bps, cloud_short)
 
         doc.save(str(output_path))
@@ -780,6 +781,61 @@ class DocxRemediationReporter(BaseReporter):
                 link = p.add_run(_docs_url(cloud, "/getting-started/best-practices"))
                 link.font.color.rgb = _BLUE
                 link.font.underline = True
+
+    def _add_unverified_section(self, doc: Document, bps: list, cloud_short: str) -> None:
+        """Add a section listing all BPs that WAL-E could not automatically verify."""
+        unverified = [bp for bp in bps if not bp.get("verified", True)]
+        if not unverified:
+            return
+
+        doc.add_page_break()
+        doc.add_heading("Requires Manual Verification", level=1)
+
+        intro = (
+            f"The following {len(unverified)} best practices could not be automatically assessed "
+            f"from the available API data or system tables. These require manual review by the "
+            f"customer and SA together."
+        )
+        doc.add_paragraph(intro)
+
+        table = doc.add_table(rows=1, cols=4)
+        table.style = "Light List Accent 1"
+        table.alignment = WD_TABLE_ALIGNMENT.CENTER
+        headers = ["#", "Pillar", "Best Practice", "Why Unverifiable"]
+        for i, h in enumerate(headers):
+            table.rows[0].cells[i].text = h
+            _shade_cell(table.rows[0].cells[i], _HEADER_BG)
+            for par in table.rows[0].cells[i].paragraphs:
+                for run in par.runs:
+                    run.font.color.rgb = _WHITE
+                    run.font.bold = True
+
+        for idx, bp in enumerate(sorted(unverified, key=lambda x: x.get("pillar", "")), 1):
+            row = table.add_row()
+            row.cells[0].text = str(idx)
+            row.cells[1].text = PILLAR_DISPLAY_NAMES.get(bp.get("pillar", ""), bp.get("pillar", ""))
+            row.cells[2].text = bp.get("name", "Unknown")
+            row.cells[3].text = bp.get("finding_notes", "Not verifiable from API")
+            for cell in row.cells:
+                for par in cell.paragraphs:
+                    par.style = doc.styles["Normal"]
+                    for run in par.runs:
+                        run.font.size = Pt(9)
+
+        doc.add_paragraph()
+        doc.add_heading("How to Increase Coverage", level=2)
+
+        actions = [
+            ("Run with workspace admin access", "Unlocks security configuration settings (DBFS browser, token lifetime, IP access lists)"),
+            ("Run with metastore admin access", "Unlocks full catalog listing, external locations, and storage credentials"),
+            ("Use --deep mode with system tables", f"Adds 11 operational best practices using {cloud_short} system tables (cost trends, query performance, job reliability, security audit)"),
+            ("Manual review with SA", "Addresses process and organizational checks that no API can verify (compliance documentation, shared responsibility model, SIEM integration)"),
+        ]
+        for action, impact in actions:
+            p = doc.add_paragraph(style="List Bullet")
+            run = p.add_run(f"{action}: ")
+            run.font.bold = True
+            p.add_run(impact)
 
     def _add_appendix(self, doc: Document, bps: list, cloud_short: str) -> None:
         doc.add_page_break()
