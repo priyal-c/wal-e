@@ -3,13 +3,13 @@
 ```
  __        __    _       _____
  \ \      / /   / \     | ____|
-  \ \ /\ / /   / _ \    | |__   
-   \ V  V /   / ___ \   |  __|  
+  \ \ /\ / /   / _ \    | |__
+   \ V  V /   / ___ \   |  __|
     \_/\_/   /_/   \_\  |_|____
     Well-Architected Lakehouse Evaluator
 ```
 
-> *"It only takes a moment..."* to assess your entire Databricks Lakehouse.
+> _"It only takes a moment..."_ to assess your entire Databricks Lakehouse.
 
 ---
 
@@ -61,14 +61,14 @@
 
 ### Security Model
 
-| Concern | How WAL-E Handles It |
-|---------|---------------------|
-| **Who runs it?** | The **customer** runs WAL-E on their own machine |
-| **Token sharing?** | **None** — the customer creates and uses their own token locally |
-| **Where do results go?** | **Stays on the customer's machine** — nothing is transmitted externally |
-| **What does the SA see?** | Only what the customer **chooses to share** (e.g., via screen share or sending the report) |
-| **What does WAL-E access?** | **Metadata only** — never reads table data, file contents, or secret values |
-| **How to clean up?** | Customer revokes their own token and deletes local results |
+| Concern                     | How WAL-E Handles It                                                                       |
+| --------------------------- | ------------------------------------------------------------------------------------------ |
+| **Who runs it?**            | The **customer** runs WAL-E on their own machine                                           |
+| **Token sharing?**          | **None** — the customer creates and uses their own token locally                           |
+| **Where do results go?**    | **Stays on the customer's machine** — nothing is transmitted externally                    |
+| **What does the SA see?**   | Only what the customer **chooses to share** (e.g., via screen share or sending the report) |
+| **What does WAL-E access?** | **Metadata only** — never reads table data, file contents, or secret values                |
+| **How to clean up?**        | Customer revokes their own token and deletes local results                                 |
 
 ---
 
@@ -85,8 +85,8 @@ Your Databricks SA will guide you through these steps on a call or screen share.
 ### Step 1: Install WAL-E
 
 ```bash
-# Clone the repo
-gh repo clone priyal-chindarkar_data/wal-e
+# Clone the repo (public — no authentication required)
+git clone https://github.com/priyal-c/wal-e.git
 cd wal-e
 
 # Install
@@ -131,22 +131,22 @@ Your SA will help you interpret the results. Share the output folder or screen s
 
 The assessment generates these files in the output directory:
 
-| File | Description |
-|------|-------------|
-| `WAL_Assessment_Readout.md` | Detailed assessment report (all 7 pillars) |
-| `WAL_Assessment_Scores.csv` | 140 best practices with scores and notes |
-| `WAL_Assessment_Presentation.pptx` | Executive readout deck (importable to Google Slides) |
+| File                                    | Description                                                     |
+| --------------------------------------- | --------------------------------------------------------------- |
+| `WAL_Assessment_Readout.md`             | Detailed assessment report (all 7 pillars)                      |
+| `WAL_Assessment_Scores.csv`             | 140 best practices with scores and notes                        |
+| `WAL_Assessment_Presentation.pptx`      | Executive readout deck (importable to Google Slides)            |
 | `WAL_Assessment_Remediation_Guide.docx` | Detailed remediation instructions with cloud-specific doc links |
-| `WAL_Assessment_Audit_Report.md` | Complete evidence trail of all API calls |
+| `WAL_Assessment_Audit_Report.md`        | Complete evidence trail of all API calls                        |
 
 ### Understanding the Scores
 
 WAL-E reports two key metrics for each pillar and overall:
 
-| Metric | What It Means |
-|--------|--------------|
-| **Verified Score** | The assessment score calculated *only* from best practices where WAL-E had enough data to make a real determination. A score of 0 (not implemented) or 2 (fully implemented) is always verified. A score of 1 is verified only when WAL-E found real evidence (e.g., "no cluster policies found"), not when it defaulted to "cannot verify from API." |
-| **Coverage** | The percentage of best practices where WAL-E had real evidence to score. Higher coverage means more confidence in the verified score. Use `--deep` mode to increase coverage by querying system tables. |
+| Metric             | What It Means                                                                                                                                                                                                                                                                                                                                         |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Verified Score** | The assessment score calculated _only_ from best practices where WAL-E had enough data to make a real determination. A score of 0 (not implemented) or 2 (fully implemented) is always verified. A score of 1 is verified only when WAL-E found real evidence (e.g., "no cluster policies found"), not when it defaulted to "cannot verify from API." |
+| **Coverage**       | The percentage of best practices where WAL-E had real evidence to score. Higher coverage means more confidence in the verified score. Use `--deep` mode to increase coverage by querying system tables.                                                                                                                                               |
 
 **Example reading:**
 
@@ -160,11 +160,11 @@ This means: of the performance BPs that WAL-E could verify (64%), the workspace 
 **Maturity level** is derived from the verified score:
 
 | Verified Score | Maturity Level |
-|:--------------:|---------------|
-| 88-100% | Optimized |
-| 63-87% | Established |
-| 25-62% | Developing |
-| 0-24% | Beginning |
+| :------------: | -------------- |
+|    88-100%     | Optimized      |
+|     63-87%     | Established    |
+|     25-62%     | Developing     |
+|     0-24%      | Beginning      |
 
 ### Step 6: Clean Up
 
@@ -193,7 +193,7 @@ As the SA, you don't need access to the customer's workspace. Your role is to gu
    - Schedule a 30-minute screen share session
 
 2. On the Call (Customer shares their screen)
-   - Guide them through git clone and pip install
+   - Guide them through 'git clone https://github.com/priyal-c/wal-e.git' and pip install
    - Walk them through 'databricks configure' with their own workspace URL
    - Have them create a short-lived PAT token (1 day lifetime)
    - Run 'wal-e validate' to confirm access
@@ -242,13 +242,13 @@ wal-e assess --profile wal-assessment --deep --warehouse-id <YOUR_WAREHOUSE_ID>
 
 Deep scan adds **11 additional best practices** (140 total) covering:
 
-| Area | What it reveals | System Table |
-|------|----------------|-------------|
-| **Cost** | Idle cluster waste, DBU spend trends, concentration risk | `system.billing.usage`, `system.compute.clusters` |
-| **Performance** | Query failure rate, slow query prevalence, warehouse utilization | `system.query.history` |
-| **Reliability** | Job success rate, recurring job failures | `system.lakeflow.job_run_timeline` |
-| **Security** | Failed login monitoring, permission change audit | `system.access.audit` |
-| **Operations** | Cluster utilization efficiency (24/7 clusters) | `system.compute.clusters` |
+| Area            | What it reveals                                                  | System Table                                      |
+| --------------- | ---------------------------------------------------------------- | ------------------------------------------------- |
+| **Cost**        | Idle cluster waste, DBU spend trends, concentration risk         | `system.billing.usage`, `system.compute.clusters` |
+| **Performance** | Query failure rate, slow query prevalence, warehouse utilization | `system.query.history`                            |
+| **Reliability** | Job success rate, recurring job failures                         | `system.lakeflow.job_run_timeline`                |
+| **Security**    | Failed login monitoring, permission change audit                 | `system.access.audit`                             |
+| **Operations**  | Cluster utilization efficiency (24/7 clusters)                   | `system.compute.clusters`                         |
 
 **Prerequisites for deep scan:**
 
@@ -275,6 +275,7 @@ WAL-E integrates natively with the [Databricks AI Dev Kit](https://github.com/da
 ```
 
 Then in Cursor Agent, ask:
+
 > "Run a Well-Architected Lakehouse assessment on my workspace"
 
 ### As a Claude Code Skill
@@ -284,6 +285,7 @@ Then in Cursor Agent, ask:
 ```
 
 Then ask naturally in Claude Code (no slash command):
+
 > "Run a WAL-E assessment on my Databricks workspace and generate a readout deck"
 
 > **Claude Code Timeout:** Claude Code's Bash tool has a max timeout of 10 minutes.
@@ -311,12 +313,12 @@ WAL-E needs **read-only** access to the workspace. It makes **21 HTTP GET API ca
 
 ### Permissions by Assessment Depth
 
-| Access Level | What You Get | Coverage |
-|-------------|-------------|:--------:|
-| Regular user | Own clusters, permitted catalogs, own jobs | ~40% |
-| **Workspace admin** | All clusters, warehouses, security config, all jobs | **~80%** |
-| **Workspace admin + Metastore admin** | Above + all catalogs, credentials, locations | **~95%** |
-| Above + System tables | Full above + billing, audit, query history | **100%** |
+| Access Level                          | What You Get                                        | Coverage |
+| ------------------------------------- | --------------------------------------------------- | :------: |
+| Regular user                          | Own clusters, permitted catalogs, own jobs          |   ~40%   |
+| **Workspace admin**                   | All clusters, warehouses, security config, all jobs | **~80%** |
+| **Workspace admin + Metastore admin** | Above + all catalogs, credentials, locations        | **~95%** |
+| Above + System tables                 | Full above + billing, audit, query history          | **100%** |
 
 **Recommended:** Workspace admin + Metastore admin for a meaningful assessment.
 
@@ -359,28 +361,28 @@ WAL-E needs **read-only** access to the workspace. It makes **21 HTTP GET API ca
      +----------------------------------------------+
 ```
 
-| Component | Path | Description |
-|-----------|------|-------------|
-| `src/wal_e/collectors/` | Data collection modules for each assessment area |
-| `src/wal_e/framework/` | WAL pillar definitions, best practices, scoring logic |
-| `src/wal_e/reporters/` | Report generators (MD, CSV, HTML, PPTX, Audit) |
-| `src/wal_e/core/` | Orchestration engine, config, cloud detection |
-| `mcp/` | MCP server for AI Dev Kit integration |
+| Component               | Path                                                  | Description |
+| ----------------------- | ----------------------------------------------------- | ----------- |
+| `src/wal_e/collectors/` | Data collection modules for each assessment area      |
+| `src/wal_e/framework/`  | WAL pillar definitions, best practices, scoring logic |
+| `src/wal_e/reporters/`  | Report generators (MD, CSV, HTML, PPTX, Audit)        |
+| `src/wal_e/core/`       | Orchestration engine, config, cloud detection         |
+| `mcp/`                  | MCP server for AI Dev Kit integration                 |
 
 ---
 
 ## WAL Framework Pillars
 
-| # | Pillar | Best Practices | Focus Areas |
-|---|--------|:--------------:|-------------|
-| 1 | Data & AI Governance | 15 | Unity Catalog, metadata, lineage, data quality |
-| 2 | Interoperability & Usability | 14 | Open formats, IaC, serverless, self-service |
-| 3 | Operational Excellence | 24 | CI/CD, MLOps, monitoring, cluster utilization* |
-| 4 | Security, Compliance & Privacy | 14 | IAM, SSO/SCIM, encryption, login audit*, permissions* |
-| 5 | Reliability | 21 | ACID, auto-scaling, DR, job success rate*, recurring failures* |
-| 6 | Performance Efficiency | 28 | Serverless, data layout, query failure rate*, slow queries* |
-| 7 | Cost Optimization | 23 | Spot/preemptible, idle waste*, cost trends*, concentration* |
-| | **Total** | **140** | *\* = deep scan (system tables)* |
+| #   | Pillar                         | Best Practices | Focus Areas                                                    |
+| --- | ------------------------------ | :------------: | -------------------------------------------------------------- |
+| 1   | Data & AI Governance           |       15       | Unity Catalog, metadata, lineage, data quality                 |
+| 2   | Interoperability & Usability   |       14       | Open formats, IaC, serverless, self-service                    |
+| 3   | Operational Excellence         |       24       | CI/CD, MLOps, monitoring, cluster utilization\*                |
+| 4   | Security, Compliance & Privacy |       14       | IAM, SSO/SCIM, encryption, login audit*, permissions*          |
+| 5   | Reliability                    |       21       | ACID, auto-scaling, DR, job success rate*, recurring failures* |
+| 6   | Performance Efficiency         |       28       | Serverless, data layout, query failure rate*, slow queries*    |
+| 7   | Cost Optimization              |       23       | Spot/preemptible, idle waste*, cost trends*, concentration\*   |
+|     | **Total**                      |    **140**     | _\* = deep scan (system tables)_                               |
 
 ---
 
@@ -389,6 +391,7 @@ WAL-E needs **read-only** access to the workspace. It makes **21 HTTP GET API ca
 We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ### Areas for Contribution
+
 - Additional collectors (e.g., Databricks Apps, Clean Rooms, Marketplace)
 - Custom scoring profiles per industry vertical
 - Additional output formats (PDF, Notion, Confluence)
