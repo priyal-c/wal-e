@@ -21,11 +21,11 @@ RESET='\033[0m'
 
 banner() {
   echo -e "${CYAN}"
-  echo " __        __     _     ||  ___   _____"
+  echo " __        __           ||  ___   _____"
   echo " \\ \\      / /    / \\    ||        | ____|"
   echo "  \\ \\ /\\ / /    / _ \\   ||        | |__"
   echo "   \\ V  V /    / ___ \\  ||        |  __|"
-  echo "    \\_/\\_/    /_/   \\_\\ ||____ ___|_|____"
+  echo "    \\_/\\_/    /_/   \\_\\ ||____    |_|____"
   echo -e "${RESET}    ${DIM}Well-Architected Lakehouse Evaluator${RESET}"
   echo ""
 }
