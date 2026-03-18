@@ -1,7 +1,7 @@
 # WAL-E: Well-Architected Lakehouse Evaluator
 
 ```
- __        __           ||  ___   _____
+ __        __           ||       _____
  \ \      / /    / \    ||        | ____|
   \ \ /\ / /    / _ \   ||        | |__
    \ V  V /    / ___ \  ||        |  __|
