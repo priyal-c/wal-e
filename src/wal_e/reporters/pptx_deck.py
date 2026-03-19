@@ -204,12 +204,12 @@ class PPTXDeckReporter(BaseReporter):
                         try: fg = self._score_color(float(val))
                         except ValueError: pass
                     elif kind == "maturity":
-                        v = val.lower()
+                        v = (val or "").lower()
                         if "optimized" in v or "established" in v: fg = DB_GREEN
                         elif "developing" in v: fg = DB_ORANGE
                         elif "beginning" in v: fg = DB_CRIT
                     elif kind == "quickfix":
-                        fg = DB_GREEN if val.lower() == "yes" else DB_ORANGE
+                        fg = DB_GREEN if (val or "").lower() == "yes" else DB_ORANGE
                 self._cell(c, Pt(9), fg, bg)
 
     # ====================== SLIDE 1: TITLE ======================

@@ -514,7 +514,7 @@ _REMEDIATION_KB: list[dict[str, Any]] = [
 
 def _find_remediation(bp_name: str) -> dict[str, Any] | None:
     """Find the best matching remediation entry for a best practice name."""
-    name_lower = bp_name.lower()
+    name_lower = (bp_name or "").lower()
     for entry in _REMEDIATION_KB:
         for pattern in entry["applies_to"]:
             if pattern.lower() in name_lower:
