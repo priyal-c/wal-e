@@ -277,7 +277,7 @@ def _score_int_005(data: dict) -> tuple[int, str]:
     ops = _get(data, "OperationsCollector") or {}
     jobs = ops.get("jobs", []) or []
     job_names = [j.get("name", "") for j in jobs if isinstance(j, dict)] if jobs else ops.get("job_names", []) or []
-    dab = [j for j in (job_names or []) if "[DAB]" in j or "dabs" in j.lower()]
+    dab = [j for j in (job_names or []) if "[DAB]" in (j or "") or "dabs" in (j or "").lower()]
     if dab:
         return 1, f"{len(dab)} DAB-deployed jobs — partial IaC. Expand to Terraform/universal IaC."
     return 1, "IaC usage not detected from API. Document Terraform/CI usage."
@@ -604,7 +604,7 @@ def _score_sec_003(data: dict) -> tuple[int, str]:
     ip_lists = sec.get("ip_access_lists", []) or []
     sec_settings = sec.get("security_settings", {}) or {}
     ipl_count = len(ip_lists) if isinstance(ip_lists, list) else (sec.get("ip_access_list_count", 0) or 0)
-    enable_ipl = sec_settings.get("enableIpAccessLists", "").lower() == "true"
+    enable_ipl = str(sec_settings.get("enableIpAccessLists", "")).lower() == "true"
     if ipl_count > 0 and enable_ipl:
         return 2, f"IP access lists configured and enabled for network security ({ipl_count} lists)."
     if ipl_count > 0:
@@ -640,7 +640,7 @@ def _score_sec_007(data: dict) -> tuple[int, str]:
     """Generic controls."""
     sec = _get(data, "SecurityCollector") or {}
     sec_settings = sec.get("security_settings", {}) or {}
-    dbfs_disabled = sec_settings.get("enableDbfsFileBrowser", "").lower() == "false"
+    dbfs_disabled = str(sec_settings.get("enableDbfsFileBrowser", "")).lower() == "false"
     if dbfs_disabled:
         return 2, "DBFS file browser disabled in workspace settings — generic controls enforced."
     if sec_settings:
@@ -1760,7 +1760,7 @@ def _is_verified(score: int, notes: str) -> bool:
     """Determine if a scored BP is based on real evidence or is a default."""
     if score in (0, 2):
         return True
-    notes_lower = notes.lower()
+    notes_lower = (notes or "").lower()
     for pattern in _UNVERIFIABLE_PATTERNS:
         if pattern in notes_lower:
             return False
