@@ -64,8 +64,8 @@ class WalEConfig:
     )
 
     def __post_init__(self) -> None:
-        """Load profile from ~/.databrickscfg if host/token not set."""
-        if not self.workspace_host or not self.token:
+        """Load profile from ~/.databrickscfg if host not set."""
+        if not self.workspace_host:
             self._load_from_cli_config()
         # Auto-detect cloud provider from workspace host
         if not self.cloud_provider:
@@ -105,9 +105,31 @@ class WalEConfig:
         """
         if not self.workspace_host:
             return False, "Workspace host not configured. Run 'databricks configure' or set host in config."
-        if not self.token:
-            return False, "Authentication token not configured. Run 'databricks configure --token'."
 
+        # Check authentication via CLI (supports both PAT and OAuth)
+        try:
+            auth_result = subprocess.run(
+                ["databricks", "auth", "describe", "--profile", self.profile_name],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if auth_result.returncode != 0:
+                stderr = auth_result.stderr.strip() if auth_result.stderr else "Unknown error"
+                return False, (
+                    f"Authentication not configured for profile '{self.profile_name}'. "
+                    f"Run 'databricks configure --profile {self.profile_name}' with --token (PAT) "
+                    f"or 'databricks auth login --profile {self.profile_name}' (OAuth). "
+                    f"Detail: {stderr}"
+                )
+        except FileNotFoundError:
+            return False, "Databricks CLI not found. Install it: pip install databricks-cli"
+        except subprocess.TimeoutExpired:
+            return False, "Auth check timed out. Check network and workspace URL."
+        except Exception as e:
+            return False, f"Validation error: {e}"
+
+        # Verify actual connectivity with a lightweight API call
         try:
             result = subprocess.run(
                 ["databricks", "api", "get", "/api/2.1/clusters/list", "--profile", self.profile_name],
@@ -119,8 +141,6 @@ class WalEConfig:
                 return True, "Connection validated successfully."
             stderr = result.stderr.strip() if result.stderr else "Unknown error"
             return False, f"Connection failed: {stderr}"
-        except FileNotFoundError:
-            return False, "Databricks CLI not found. Install it: pip install databricks-cli"
         except subprocess.TimeoutExpired:
             return False, "Connection timed out. Check network and workspace URL."
         except Exception as e:

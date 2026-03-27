@@ -555,29 +555,29 @@ def _print_access_guide() -> None:
 WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
 {C.GREEN}Zero writes. Zero data access. Zero resource modifications.{C.RESET}
 
-{C.BOLD}STEP 1: CREATE A PAT TOKEN (1 minute){C.RESET}
+{C.BOLD}STEP 1: AUTHENTICATE (1 minute){C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
-  Log into your workspace as a {C.YELLOW}workspace admin{C.RESET}:
-  1. Click your username (top-right) > {C.BOLD}Settings{C.RESET}
-  2. Go to {C.BOLD}Developer{C.RESET} > {C.BOLD}Access tokens{C.RESET} > {C.BOLD}Generate New Token{C.RESET}
-  3. Description: {C.DIM}"WAL-E Assessment - [today's date]"{C.RESET}
-  4. Lifetime: {C.GREEN}1 day{C.RESET} (assessment takes ~15 minutes)
-  5. Click {C.BOLD}Generate{C.RESET} and copy the token
+  Log into your workspace as a {C.YELLOW}workspace admin{C.RESET}.
 
-{C.BOLD}STEP 2: CONFIGURE THE DATABRICKS CLI (1 minute){C.RESET}
-{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
+  {C.BOLD}Option A: OAuth (recommended){C.RESET}
+  {C.CYAN}${C.RESET} databricks auth login --profile wal-assessment \\
+      --host https://YOUR-WORKSPACE-URL
+  {C.DIM}# A browser window opens — log in and authorize{C.RESET}
 
+  {C.BOLD}Option B: Personal Access Token (PAT){C.RESET}
+  1. In your workspace: Settings > Developer > Access tokens > Generate
+  2. Set lifetime to {C.GREEN}1 day{C.RESET}, copy the token
   {C.CYAN}${C.RESET} databricks configure --profile wal-assessment \\
       --host https://YOUR-WORKSPACE-URL --token
-  {C.DIM}# Paste the PAT token you just created{C.RESET}
+  {C.DIM}# Paste the PAT token when prompted{C.RESET}
 
-{C.BOLD}STEP 3: VALIDATE ACCESS (30 seconds){C.RESET}
+{C.BOLD}STEP 2: VALIDATE ACCESS (30 seconds){C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
   {C.CYAN}${C.RESET} wal-e validate --profile wal-assessment
 
-{C.BOLD}STEP 4: RUN THE ASSESSMENT (5-10 minutes){C.RESET}
+{C.BOLD}STEP 3: RUN THE ASSESSMENT (5-10 minutes){C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
   {C.CYAN}${C.RESET} wal-e assess --profile wal-assessment --interactive
@@ -586,7 +586,7 @@ WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
   Or for a quick scan:
   {C.CYAN}${C.RESET} wal-e assess --profile wal-assessment --output ./my-assessment --format all
 
-{C.BOLD}STEP 5: REVIEW RESULTS WITH YOUR SA{C.RESET}
+{C.BOLD}STEP 4: REVIEW RESULTS WITH YOUR SA{C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
   Reports are saved in your output directory:
@@ -597,10 +597,10 @@ WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
 
   Share with your SA via screen share or by sending the files.
 
-{C.BOLD}STEP 6: CLEAN UP (1 minute){C.RESET}
+{C.BOLD}STEP 5: CLEAN UP (1 minute){C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
-  1. Revoke your token: Settings > Developer > Access tokens > Revoke
+  1. If you used a PAT: revoke it in Settings > Developer > Access tokens > Revoke
   2. Remove CLI profile: edit ~/.databrickscfg, delete [wal-assessment]
   3. Delete local files: rm -rf ./my-assessment
 
@@ -652,11 +652,11 @@ WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
   {C.GREEN}+{C.RESET} YOU run everything on YOUR machine
-  {C.GREEN}+{C.RESET} Your token NEVER leaves your environment
+  {C.GREEN}+{C.RESET} Your credentials NEVER leave your environment
   {C.GREEN}+{C.RESET} All calls are HTTPS/TLS encrypted to YOUR workspace
   {C.GREEN}+{C.RESET} Results are stored locally on YOUR machine only
   {C.GREEN}+{C.RESET} Complete audit trail so you can verify every API call
-  {C.GREEN}+{C.RESET} Token auto-expires in 1 day (or revoke immediately)
+  {C.GREEN}+{C.RESET} PAT tokens auto-expire in 1 day; OAuth sessions can be revoked
 
   {C.RED}-{C.RESET} NEVER reads table data, file contents, or query results
   {C.RED}-{C.RESET} NEVER executes notebooks, jobs, or pipelines
