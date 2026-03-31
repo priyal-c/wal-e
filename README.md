@@ -19,6 +19,16 @@
 
 **WAL-E is designed to be run by the customer on their own system**, with a Databricks Solutions Architect guiding them through every step. No tokens, credentials, or data ever leave the customer's environment.
 
+### Guiding principles
+
+WAL-E is grounded in **Databricks’ standard best practices**, which are **publicly documented** and maintained alongside the product. Use the **best-practices hub for your cloud** (same catalog of cheat sheets and articles; Azure is hosted on Microsoft Learn):
+
+- **AWS:** [Best practice articles](https://docs.databricks.com/aws/en/getting-started/best-practices)
+- **Azure:** [Best practice articles](https://learn.microsoft.com/en-us/azure/databricks/getting-started/best-practices) (Databricks on Azure documentation on Microsoft Learn)
+- **Google Cloud:** [Best practice articles](https://docs.databricks.com/gcp/en/getting-started/best-practices)
+
+The assessment’s scoring model is the **Well-Architected Lakehouse Framework** (seven pillars, evidence-backed checks). Cloud-specific entry points: **[AWS](https://docs.databricks.com/aws/en/lakehouse-architecture/well-architected)** · **[Azure](https://learn.microsoft.com/en-us/azure/databricks/lakehouse-architecture/well-architected)** · **[Google Cloud](https://docs.databricks.com/gcp/en/lakehouse-architecture/well-architected)**. Together, the best-practices catalog and the Well-Architected framework define what WAL-E evaluates and why.
+
 ### How It Works
 
 ```
