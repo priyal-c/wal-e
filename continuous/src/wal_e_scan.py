@@ -9,7 +9,7 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install python-pptx python-docx
+# MAGIC %pip install python-pptx python-docx git+https://github.com/priyal-c/wal-e.git
 # MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
@@ -114,7 +114,7 @@ CREATE TABLE IF NOT EXISTS {VIOLATIONS_TABLE} (
   severity          STRING      COMMENT 'critical, high, medium, low',
   finding_notes     STRING      COMMENT 'Current finding details',
   workspace_host    STRING      COMMENT 'Workspace URL',
-  acknowledged      BOOLEAN     DEFAULT FALSE COMMENT 'Has someone acknowledged this',
+  acknowledged      BOOLEAN     COMMENT 'Has someone acknowledged this',
   acknowledged_by   STRING      COMMENT 'Who acknowledged',
   acknowledged_at   TIMESTAMP   COMMENT 'When acknowledged'
 )

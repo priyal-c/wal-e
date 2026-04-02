@@ -1,0 +1,1158 @@
+{
+  "pillar_scores": {
+    "Data & AI Governance": 0.8666666666666667,
+    "Interoperability & Usability": 1.4,
+    "Operational Excellence": 1.25,
+    "Security": 1.0714285714285714,
+    "Reliability": 1.2380952380952381,
+    "Performance": 1.4642857142857142,
+    "Cost": 1.434782608695652
+  },
+  "best_practice_scores": [
+    {
+      "name": "Establish governance process",
+      "pillar": "Data & AI Governance",
+      "principle": "Establish governance processes",
+      "score": 1,
+      "finding_notes": "Unity Catalog in use but 3932 catalogs suggest ad-hoc governance. Formalize process.",
+      "verified": true
+    },
+    {
+      "name": "Manage metadata in one place",
+      "pillar": "Data & AI Governance",
+      "principle": "Manage metadata centrally",
+      "score": 2,
+      "finding_notes": "Single metastore 'unity-catalog-demo'; metadata managed centrally.",
+      "verified": true
+    },
+    {
+      "name": "Track lineage",
+      "pillar": "Data & AI Governance",
+      "principle": "Track lineage and discovery",
+      "score": 1,
+      "finding_notes": "Unity Catalog lineage available but active tracking not verified. Monitor lineage usage.",
+      "verified": true
+    },
+    {
+      "name": "Add descriptions",
+      "pillar": "Data & AI Governance",
+      "principle": "Manage metadata centrally",
+      "score": 0,
+      "finding_notes": "3932 catalogs \u2014 likely many lack descriptions. Add comments to schemas and tables.",
+      "verified": true
+    },
+    {
+      "name": "Allow discovery",
+      "pillar": "Data & AI Governance",
+      "principle": "Track lineage and discovery",
+      "score": 1,
+      "finding_notes": "Unity Catalog available but 3932 catalogs hinder discovery. Consolidate catalogs.",
+      "verified": true
+    },
+    {
+      "name": "Govern AI assets",
+      "pillar": "Data & AI Governance",
+      "principle": "Govern AI assets",
+      "score": 1,
+      "finding_notes": "834 serving endpoints \u2014 AI assets partially governed. Extend to Model Registry.",
+      "verified": true
+    },
+    {
+      "name": "Centralize access control",
+      "pillar": "Data & AI Governance",
+      "principle": "Establish governance processes",
+      "score": 0,
+      "finding_notes": "Metastore owner is 'account users' \u2014 overly permissive. Use dedicated admin group.",
+      "verified": true
+    },
+    {
+      "name": "Configure audit logging",
+      "pillar": "Data & AI Governance",
+      "principle": "Establish governance processes",
+      "score": 1,
+      "finding_notes": "Workspace configuration accessible; audit logging partially verified. Enable system tables for full audit.",
+      "verified": true
+    },
+    {
+      "name": "Audit events",
+      "pillar": "Data & AI Governance",
+      "principle": "Establish governance processes",
+      "score": 1,
+      "finding_notes": "Workspace settings accessible; configure systematic audit event monitoring and alerting via system tables.",
+      "verified": true
+    },
+    {
+      "name": "Define DQ standards",
+      "pillar": "Data & AI Governance",
+      "principle": "Define data quality standards",
+      "score": 1,
+      "finding_notes": "25 DLT pipelines present \u2014 verify DQ expectations are defined.",
+      "verified": true
+    },
+    {
+      "name": "Use DQ tools",
+      "pillar": "Data & AI Governance",
+      "principle": "Define data quality standards",
+      "score": 1,
+      "finding_notes": "25 DLT pipelines \u2014 verify expectations are actively used.",
+      "verified": true
+    },
+    {
+      "name": "Enforce standardized formats",
+      "pillar": "Data & AI Governance",
+      "principle": "Enforce standardized formats",
+      "score": 1,
+      "finding_notes": "Unity Catalog + Delta Lake in use but cannot verify all tables use Delta format from API.",
+      "verified": false
+    },
+    {
+      "name": "Account-level group management",
+      "pillar": "Data & AI Governance",
+      "principle": "Establish governance processes",
+      "score": 0,
+      "finding_notes": "No SCIM groups detected. Use account-level groups synced from your IdP.",
+      "verified": true
+    },
+    {
+      "name": "Prefer managed tables",
+      "pillar": "Data & AI Governance",
+      "principle": "Manage metadata centrally",
+      "score": 1,
+      "finding_notes": "Some external locations (576). Prefer UC managed tables for new tables.",
+      "verified": true
+    },
+    {
+      "name": "BROWSE privilege for discovery",
+      "pillar": "Data & AI Governance",
+      "principle": "Track lineage and discovery",
+      "score": 1,
+      "finding_notes": "Unity Catalog in use. Grant BROWSE privilege on catalogs to All account users for data discovery.",
+      "verified": true
+    },
+    {
+      "name": "Standard integration patterns",
+      "pillar": "Interoperability & Usability",
+      "principle": "Standard integration patterns",
+      "score": 1,
+      "finding_notes": "3 DAB-based jobs detected; expand to standardize integration patterns.",
+      "verified": true
+    },
+    {
+      "name": "Optimized connectors",
+      "pillar": "Interoperability & Usability",
+      "principle": "Standard integration patterns",
+      "score": 1,
+      "finding_notes": "LakeFlow Connect/gateway pipelines detected (2). Verify optimized connectors.",
+      "verified": true
+    },
+    {
+      "name": "Certified partner tools",
+      "pillar": "Interoperability & Usability",
+      "principle": "Standard integration patterns",
+      "score": 1,
+      "finding_notes": "IP access lists suggest external tool integration (e.g. Power BI). Verify certified partners.",
+      "verified": true
+    },
+    {
+      "name": "Reduce pipeline complexity",
+      "pillar": "Interoperability & Usability",
+      "principle": "Standard integration patterns",
+      "score": 2,
+      "finding_notes": "25 DLT pipelines reduce complexity.",
+      "verified": true
+    },
+    {
+      "name": "Use IaC",
+      "pillar": "Interoperability & Usability",
+      "principle": "Standard integration patterns",
+      "score": 1,
+      "finding_notes": "IaC usage not detected from API. Document Terraform/CI usage.",
+      "verified": true
+    },
+    {
+      "name": "Open data formats",
+      "pillar": "Interoperability & Usability",
+      "principle": "Open formats and standards",
+      "score": 2,
+      "finding_notes": "Delta Lake (open format) used via Unity Catalog.",
+      "verified": true
+    },
+    {
+      "name": "Secure sharing",
+      "pillar": "Interoperability & Usability",
+      "principle": "Open formats and standards",
+      "score": 2,
+      "finding_notes": "Delta Sharing configured (INTERNAL_AND_EXTERNAL) for secure sharing.",
+      "verified": true
+    },
+    {
+      "name": "Open ML standards",
+      "pillar": "Interoperability & Usability",
+      "principle": "Open formats and standards",
+      "score": 2,
+      "finding_notes": "MLflow/model serving in use (834 endpoints).",
+      "verified": true
+    },
+    {
+      "name": "Self-service",
+      "pillar": "Interoperability & Usability",
+      "principle": "Self-service and productivity",
+      "score": 2,
+      "finding_notes": "51 SQL Warehouses available for self-service analytics.",
+      "verified": true
+    },
+    {
+      "name": "Serverless compute",
+      "pillar": "Interoperability & Usability",
+      "principle": "Self-service and productivity",
+      "score": 2,
+      "finding_notes": "50 SQL warehouse(s) with Pro or serverless compute.",
+      "verified": true
+    },
+    {
+      "name": "Predefined compute templates",
+      "pillar": "Interoperability & Usability",
+      "principle": "Self-service and productivity",
+      "score": 0,
+      "finding_notes": "No cluster policies. Define compute templates via policies.",
+      "verified": true
+    },
+    {
+      "name": "AI productivity",
+      "pillar": "Interoperability & Usability",
+      "principle": "Self-service and productivity",
+      "score": 1,
+      "finding_notes": "AI productivity not verifiable from API. Verify assistant enablement.",
+      "verified": false
+    },
+    {
+      "name": "Reusable data products",
+      "pillar": "Interoperability & Usability",
+      "principle": "Reusable data products",
+      "score": 1,
+      "finding_notes": "Delta Sharing configured. Define reusable data products.",
+      "verified": true
+    },
+    {
+      "name": "Semantic consistency",
+      "pillar": "Interoperability & Usability",
+      "principle": "Reusable data products",
+      "score": 1,
+      "finding_notes": "Semantic consistency not verifiable from API. Use Databricks SQL semantic layer.",
+      "verified": false
+    },
+    {
+      "name": "UC for discovery",
+      "pillar": "Interoperability & Usability",
+      "principle": "Track lineage and discovery",
+      "score": 2,
+      "finding_notes": "Unity Catalog 'unity-catalog-demo' enables data discovery.",
+      "verified": true
+    },
+    {
+      "name": "Dedicated ops team",
+      "pillar": "Operational Excellence",
+      "principle": "Dedicated operations",
+      "score": 1,
+      "finding_notes": "Cannot verify org structure from API. Document dedicated ops ownership.",
+      "verified": false
+    },
+    {
+      "name": "Enterprise SCM",
+      "pillar": "Operational Excellence",
+      "principle": "Standardize CI/CD and MLOps",
+      "score": 2,
+      "finding_notes": "Repos/SCM configured (4416 repos).",
+      "verified": true
+    },
+    {
+      "name": "Standardize CI/CD",
+      "pillar": "Operational Excellence",
+      "principle": "Standardize CI/CD and MLOps",
+      "score": 1,
+      "finding_notes": "20 jobs present but none use Git source. Use Repos and Git-backed job tasks for CI/CD.",
+      "verified": true
+    },
+    {
+      "name": "MLOps processes",
+      "pillar": "Operational Excellence",
+      "principle": "Standardize CI/CD and MLOps",
+      "score": 1,
+      "finding_notes": "834 serving endpoints; Model Registry not verifiable from API. Register models in MLflow.",
+      "verified": false
+    },
+    {
+      "name": "Environment isolation",
+      "pillar": "Operational Excellence",
+      "principle": "Environment isolation",
+      "score": 2,
+      "finding_notes": "Multiple catalogs; environment isolation via UC.",
+      "verified": true
+    },
+    {
+      "name": "Catalog strategy",
+      "pillar": "Operational Excellence",
+      "principle": "Environment isolation",
+      "score": 2,
+      "finding_notes": "Catalog strategy in place with multiple catalogs.",
+      "verified": true
+    },
+    {
+      "name": "IaC deployments",
+      "pillar": "Operational Excellence",
+      "principle": "Standardize CI/CD and MLOps",
+      "score": 1,
+      "finding_notes": "IaC usage not detected from API. Document Terraform/CI usage.",
+      "verified": true
+    },
+    {
+      "name": "Standardize compute",
+      "pillar": "Operational Excellence",
+      "principle": "Standardize CI/CD and MLOps",
+      "score": 1,
+      "finding_notes": "Clusters present but no policies. Define cluster policies.",
+      "verified": true
+    },
+    {
+      "name": "Automated workflows",
+      "pillar": "Operational Excellence",
+      "principle": "Automated workflows",
+      "score": 2,
+      "finding_notes": "20 automated jobs.",
+      "verified": true
+    },
+    {
+      "name": "Event-driven ingestion",
+      "pillar": "Operational Excellence",
+      "principle": "Automated workflows",
+      "score": 1,
+      "finding_notes": "Event-driven ingestion not verifiable from API. Use Auto Loader.",
+      "verified": false
+    },
+    {
+      "name": "ETL frameworks",
+      "pillar": "Operational Excellence",
+      "principle": "Automated workflows",
+      "score": 2,
+      "finding_notes": "Delta Live Tables in use (25 pipelines).",
+      "verified": true
+    },
+    {
+      "name": "Deploy-code ML",
+      "pillar": "Operational Excellence",
+      "principle": "Standardize CI/CD and MLOps",
+      "score": 2,
+      "finding_notes": "Model serving endpoints in use (834 endpoints).",
+      "verified": true
+    },
+    {
+      "name": "Model registry",
+      "pillar": "Operational Excellence",
+      "principle": "Standardize CI/CD and MLOps",
+      "score": 1,
+      "finding_notes": "834 serving endpoints; Model Registry not verifiable from API. Register models in MLflow.",
+      "verified": false
+    },
+    {
+      "name": "Automate experiment tracking",
+      "pillar": "Operational Excellence",
+      "principle": "Standardize CI/CD and MLOps",
+      "score": 1,
+      "finding_notes": "Experiment tracking not verifiable from API. Use MLflow for experiment tracking.",
+      "verified": false
+    },
+    {
+      "name": "Reuse ML infra",
+      "pillar": "Operational Excellence",
+      "principle": "Standardize CI/CD and MLOps",
+      "score": 1,
+      "finding_notes": "ML infra reuse not verifiable from API. Use job clusters.",
+      "verified": false
+    },
+    {
+      "name": "Declarative management",
+      "pillar": "Operational Excellence",
+      "principle": "Automated workflows",
+      "score": 2,
+      "finding_notes": "Delta Live Tables in use (25 pipelines).",
+      "verified": true
+    },
+    {
+      "name": "Service limits",
+      "pillar": "Operational Excellence",
+      "principle": "Monitoring and capacity",
+      "score": 1,
+      "finding_notes": "Service limits not verifiable from API. Document capacity limits.",
+      "verified": false
+    },
+    {
+      "name": "Capacity planning",
+      "pillar": "Operational Excellence",
+      "principle": "Monitoring and capacity",
+      "score": 1,
+      "finding_notes": "Capacity planning not verifiable from API. Document planning process.",
+      "verified": false
+    },
+    {
+      "name": "Monitoring processes",
+      "pillar": "Operational Excellence",
+      "principle": "Monitoring and capacity",
+      "score": 1,
+      "finding_notes": "Jobs/pipelines present; monitoring not fully verifiable from API. Configure alerts and dashboards.",
+      "verified": false
+    },
+    {
+      "name": "Platform monitoring tools",
+      "pillar": "Operational Excellence",
+      "principle": "Monitoring and capacity",
+      "score": 2,
+      "finding_notes": "SQL Warehouses enable platform monitoring (51 warehouses).",
+      "verified": true
+    },
+    {
+      "name": "Automated rollbacks",
+      "pillar": "Operational Excellence",
+      "principle": "Standardize CI/CD and MLOps",
+      "score": 0,
+      "finding_notes": "No Git-backed jobs detected. Implement CI/CD with automated rollback mechanisms.",
+      "verified": true
+    },
+    {
+      "name": "Workload identity federation",
+      "pillar": "Operational Excellence",
+      "principle": "Standardize CI/CD and MLOps",
+      "score": 1,
+      "finding_notes": "6366 service principal(s) exist. Verify workload identity federation for CI/CD auth (eliminates PATs).",
+      "verified": true
+    },
+    {
+      "name": "Restart long-running clusters",
+      "pillar": "Operational Excellence",
+      "principle": "Monitoring and capacity",
+      "score": 0,
+      "finding_notes": "20 running cluster(s) without auto-termination. Restart periodically for security patches.",
+      "verified": true
+    },
+    {
+      "name": "Cluster utilization efficiency (deep)",
+      "pillar": "Operational Excellence",
+      "principle": "Monitoring and capacity",
+      "score": 1,
+      "finding_notes": "Requires --deep scan with system tables. Cannot assess cluster utilization from API alone.",
+      "verified": false
+    },
+    {
+      "name": "Least privilege IAM",
+      "pillar": "Security",
+      "principle": "Least privilege",
+      "score": 2,
+      "finding_notes": "Unity Catalog enables centralized least-privilege IAM.",
+      "verified": true
+    },
+    {
+      "name": "Data protection transit/rest",
+      "pillar": "Security",
+      "principle": "Data protection",
+      "score": 1,
+      "finding_notes": "Verify AWS SSE-S3/SSE-KMS encryption at rest and TLS in transit. Consider customer-managed keys (CMK).",
+      "verified": true
+    },
+    {
+      "name": "Network security",
+      "pillar": "Security",
+      "principle": "Network security",
+      "score": 2,
+      "finding_notes": "IP access lists configured and enabled for network security (250 lists).",
+      "verified": true
+    },
+    {
+      "name": "Shared responsibility",
+      "pillar": "Security",
+      "principle": "Compliance",
+      "score": 1,
+      "finding_notes": "Shared responsibility model not verifiable from API. Document cloud security.",
+      "verified": false
+    },
+    {
+      "name": "Compliance requirements",
+      "pillar": "Security",
+      "principle": "Compliance",
+      "score": 1,
+      "finding_notes": "Some workspace security settings configured; review DBFS browser, IP access lists for full compliance.",
+      "verified": true
+    },
+    {
+      "name": "System security monitoring",
+      "pillar": "Security",
+      "principle": "Compliance",
+      "score": 1,
+      "finding_notes": "System tables access not verifiable from API. Enable for security monitoring.",
+      "verified": false
+    },
+    {
+      "name": "Generic controls",
+      "pillar": "Security",
+      "principle": "Compliance",
+      "score": 1,
+      "finding_notes": "Workspace security settings present; consider disabling DBFS file browser for compliance.",
+      "verified": true
+    },
+    {
+      "name": "SSO configuration",
+      "pillar": "Security",
+      "principle": "Data protection",
+      "score": 1,
+      "finding_notes": "SSO not verifiable from workspace API. Set up SSO via your identity provider (Okta, AAD, etc.) (AWS).",
+      "verified": false
+    },
+    {
+      "name": "SCIM provisioning",
+      "pillar": "Security",
+      "principle": "Least privilege",
+      "score": 0,
+      "finding_notes": "No SCIM-synced groups detected. Set up SCIM provisioning from your identity provider.",
+      "verified": true
+    },
+    {
+      "name": "Service principals for automation",
+      "pillar": "Security",
+      "principle": "Least privilege",
+      "score": 2,
+      "finding_notes": "6366 service principals configured for automation.",
+      "verified": true
+    },
+    {
+      "name": "Customer-managed VPC",
+      "pillar": "Security",
+      "principle": "Network security",
+      "score": 1,
+      "finding_notes": "IP access lists enabled (AWS). Verify customer-managed VPC with AWS PrivateLink for network-level security.",
+      "verified": true
+    },
+    {
+      "name": "Restrict DBFS root data storage",
+      "pillar": "Security",
+      "principle": "Data protection",
+      "score": 0,
+      "finding_notes": "DBFS file browser is ENABLED. Disable immediately and migrate data out of DBFS root.",
+      "verified": true
+    },
+    {
+      "name": "Failed login monitoring (deep)",
+      "pillar": "Security",
+      "principle": "Monitoring and compliance",
+      "score": 1,
+      "finding_notes": "Requires --deep scan with system tables. Cannot assess login failures from API alone.",
+      "verified": false
+    },
+    {
+      "name": "Permission change audit (deep)",
+      "pillar": "Security",
+      "principle": "Monitoring and compliance",
+      "score": 1,
+      "finding_notes": "Requires --deep scan with system tables. Cannot assess permission changes from API alone.",
+      "verified": false
+    },
+    {
+      "name": "ACID format",
+      "pillar": "Reliability",
+      "principle": "ACID and resilient storage",
+      "score": 1,
+      "finding_notes": "Unity Catalog + Delta Lake in use but cannot verify all tables use Delta format from API.",
+      "verified": false
+    },
+    {
+      "name": "Resilient engine",
+      "pillar": "Reliability",
+      "principle": "ACID and resilient storage",
+      "score": 2,
+      "finding_notes": "Photon enabled on 6 cluster(s) for better resilience.",
+      "verified": true
+    },
+    {
+      "name": "Rescue invalid data",
+      "pillar": "Reliability",
+      "principle": "ACID and resilient storage",
+      "score": 1,
+      "finding_notes": "Rescue invalid data pattern not verifiable from pipeline metadata. Use Auto Loader rescued column.",
+      "verified": false
+    },
+    {
+      "name": "Auto retries",
+      "pillar": "Reliability",
+      "principle": "Managed services",
+      "score": 1,
+      "finding_notes": "Jobs present but none have max_retries > 0. Configure retries for resilience.",
+      "verified": true
+    },
+    {
+      "name": "Scalable serving",
+      "pillar": "Reliability",
+      "principle": "Managed services",
+      "score": 2,
+      "finding_notes": "Model serving endpoints in use (834 endpoints).",
+      "verified": true
+    },
+    {
+      "name": "Managed services",
+      "pillar": "Reliability",
+      "principle": "Managed services",
+      "score": 2,
+      "finding_notes": "Managed services (jobs, DLT, SQL) in use.",
+      "verified": true
+    },
+    {
+      "name": "Layered storage",
+      "pillar": "Reliability",
+      "principle": "ACID and resilient storage",
+      "score": 1,
+      "finding_notes": "Multiple catalogs; schema layering not verifiable from API. Verify bronze/silver/gold.",
+      "verified": false
+    },
+    {
+      "name": "Reduce redundancy",
+      "pillar": "Reliability",
+      "principle": "ACID and resilient storage",
+      "score": 1,
+      "finding_notes": "Data redundancy not verifiable from API. Document deduplication strategy.",
+      "verified": false
+    },
+    {
+      "name": "Active schema mgmt",
+      "pillar": "Reliability",
+      "principle": "Schema management",
+      "score": 1,
+      "finding_notes": "DLT pipelines present; schema constraints not verifiable from API. Use Delta constraints.",
+      "verified": false
+    },
+    {
+      "name": "Constraints/expectations",
+      "pillar": "Reliability",
+      "principle": "Schema management",
+      "score": 1,
+      "finding_notes": "DLT pipelines present; schema constraints not verifiable from API. Use Delta constraints.",
+      "verified": false
+    },
+    {
+      "name": "Data-centric ML",
+      "pillar": "Reliability",
+      "principle": "Schema management",
+      "score": 1,
+      "finding_notes": "Feature Store not verifiable from API. Use for data-centric ML.",
+      "verified": false
+    },
+    {
+      "name": "ETL autoscaling",
+      "pillar": "Reliability",
+      "principle": "Managed services",
+      "score": 1,
+      "finding_notes": "DLT pipelines present but autoscaling not enabled. Enable on DLT pipelines.",
+      "verified": true
+    },
+    {
+      "name": "SQL warehouse autoscaling",
+      "pillar": "Reliability",
+      "principle": "Managed services",
+      "score": 2,
+      "finding_notes": "48 SQL warehouse(s) with multi-cluster or serverless autoscaling.",
+      "verified": true
+    },
+    {
+      "name": "Regular backups",
+      "pillar": "Reliability",
+      "principle": "Backup and recovery",
+      "score": 1,
+      "finding_notes": "Backup strategy not verifiable from API. Document Delta clone/backup process.",
+      "verified": false
+    },
+    {
+      "name": "Streaming recovery",
+      "pillar": "Reliability",
+      "principle": "Backup and recovery",
+      "score": 1,
+      "finding_notes": "DLT checkpoints used by default; storage config not verifiable from API.",
+      "verified": false
+    },
+    {
+      "name": "Time travel recovery",
+      "pillar": "Reliability",
+      "principle": "Backup and recovery",
+      "score": 2,
+      "finding_notes": "Unity Catalog with Delta Lake enables time travel recovery.",
+      "verified": true
+    },
+    {
+      "name": "Job automation recovery",
+      "pillar": "Reliability",
+      "principle": "Backup and recovery",
+      "score": 1,
+      "finding_notes": "Jobs present but none have max_retries > 0. Configure retries for resilience.",
+      "verified": true
+    },
+    {
+      "name": "DR pattern",
+      "pillar": "Reliability",
+      "principle": "Backup and recovery",
+      "score": 1,
+      "finding_notes": "DR pattern not verifiable from API. Document replication and RTO/RPO.",
+      "verified": false
+    },
+    {
+      "name": "Service principal job ownership",
+      "pillar": "Reliability",
+      "principle": "Managed services",
+      "score": 1,
+      "finding_notes": "Service principals exist but job ownership not verified. Transfer production job ownership to service principals.",
+      "verified": true
+    },
+    {
+      "name": "Job success rate (deep)",
+      "pillar": "Reliability",
+      "principle": "Resilient workloads",
+      "score": 1,
+      "finding_notes": "Requires --deep scan with system tables. Cannot assess job success rate from API alone.",
+      "verified": false
+    },
+    {
+      "name": "Recurring job failures (deep)",
+      "pillar": "Reliability",
+      "principle": "Resilient workloads",
+      "score": 1,
+      "finding_notes": "Requires --deep scan with system tables. Cannot assess recurring failures from API alone.",
+      "verified": false
+    },
+    {
+      "name": "Scaling",
+      "pillar": "Performance",
+      "principle": "Scaling and serverless",
+      "score": 2,
+      "finding_notes": "8 cluster(s) with autoscaling enabled.",
+      "verified": true
+    },
+    {
+      "name": "Serverless",
+      "pillar": "Performance",
+      "principle": "Scaling and serverless",
+      "score": 2,
+      "finding_notes": "50 SQL warehouse(s) with Pro or serverless compute.",
+      "verified": true
+    },
+    {
+      "name": "Data patterns",
+      "pillar": "Performance",
+      "principle": "Data patterns",
+      "score": 1,
+      "finding_notes": "Data optimization (OPTIMIZE/Z-ORDER) not verifiable from API. Use OPTIMIZE and Z-ORDER.",
+      "verified": false
+    },
+    {
+      "name": "Parallel computation",
+      "pillar": "Performance",
+      "principle": "Data patterns",
+      "score": 2,
+      "finding_notes": "Total 23 workers across clusters \u2014 parallelism utilized.",
+      "verified": true
+    },
+    {
+      "name": "Execution chain",
+      "pillar": "Performance",
+      "principle": "Data patterns",
+      "score": 2,
+      "finding_notes": "Delta Live Tables in use (25 pipelines).",
+      "verified": true
+    },
+    {
+      "name": "Larger clusters",
+      "pillar": "Performance",
+      "principle": "Scaling and serverless",
+      "score": 2,
+      "finding_notes": "Clusters sized for scale (max 12 workers). Right-size for workload.",
+      "verified": true
+    },
+    {
+      "name": "Native Spark",
+      "pillar": "Performance",
+      "principle": "Data patterns",
+      "score": 2,
+      "finding_notes": "Photon enabled on 6 cluster(s) for better resilience.",
+      "verified": true
+    },
+    {
+      "name": "Native engines",
+      "pillar": "Performance",
+      "principle": "Data patterns",
+      "score": 2,
+      "finding_notes": "Photon enabled on 6 cluster(s) for better resilience.",
+      "verified": true
+    },
+    {
+      "name": "Hardware awareness",
+      "pillar": "Performance",
+      "principle": "Data patterns",
+      "score": 2,
+      "finding_notes": "Multiple instance types in use (10 types) \u2014 workload-aware selection.",
+      "verified": true
+    },
+    {
+      "name": "Caching",
+      "pillar": "Performance",
+      "principle": "Query optimization",
+      "score": 1,
+      "finding_notes": "Caching not verifiable from API. Use Delta Cache for repeated reads.",
+      "verified": false
+    },
+    {
+      "name": "Compaction",
+      "pillar": "Performance",
+      "principle": "Data patterns",
+      "score": 1,
+      "finding_notes": "Data optimization (OPTIMIZE/Z-ORDER) not verifiable from API. Use OPTIMIZE and Z-ORDER.",
+      "verified": false
+    },
+    {
+      "name": "Data skipping",
+      "pillar": "Performance",
+      "principle": "Query optimization",
+      "score": 1,
+      "finding_notes": "Data optimization (OPTIMIZE/Z-ORDER) not verifiable from API. Use OPTIMIZE and Z-ORDER.",
+      "verified": false
+    },
+    {
+      "name": "Avoid over-partition",
+      "pillar": "Performance",
+      "principle": "Data patterns",
+      "score": 1,
+      "finding_notes": "Partitioning strategy not verifiable from API. Avoid over-partitioning.",
+      "verified": false
+    },
+    {
+      "name": "Join optimization",
+      "pillar": "Performance",
+      "principle": "Query optimization",
+      "score": 1,
+      "finding_notes": "Join optimization (AQE) enabled by default. Verify skew handling.",
+      "verified": true
+    },
+    {
+      "name": "Table statistics",
+      "pillar": "Performance",
+      "principle": "Query optimization",
+      "score": 1,
+      "finding_notes": "Table statistics not verifiable from API. Run ANALYZE TABLE.",
+      "verified": false
+    },
+    {
+      "name": "Test on production data",
+      "pillar": "Performance",
+      "principle": "Query optimization",
+      "score": 1,
+      "finding_notes": "Testing strategy not verifiable from API. Use clone for testing.",
+      "verified": false
+    },
+    {
+      "name": "Prewarming",
+      "pillar": "Performance",
+      "principle": "Query optimization",
+      "score": 2,
+      "finding_notes": "51 SQL warehouse(s) with Photon enabled for latency-sensitive workloads.",
+      "verified": true
+    },
+    {
+      "name": "Identify bottlenecks",
+      "pillar": "Performance",
+      "principle": "Monitoring",
+      "score": 2,
+      "finding_notes": "SQL Warehouses enable query history for bottleneck identification.",
+      "verified": true
+    },
+    {
+      "name": "Monitor queries",
+      "pillar": "Performance",
+      "principle": "Monitoring",
+      "score": 2,
+      "finding_notes": "SQL Warehouses enable query monitoring (51 warehouses).",
+      "verified": true
+    },
+    {
+      "name": "Monitor streaming",
+      "pillar": "Performance",
+      "principle": "Monitoring",
+      "score": 2,
+      "finding_notes": "DLT pipelines enable streaming monitoring (25 pipelines).",
+      "verified": true
+    },
+    {
+      "name": "Monitor jobs",
+      "pillar": "Performance",
+      "principle": "Monitoring",
+      "score": 2,
+      "finding_notes": "Jobs enable cluster/job monitoring (20 jobs).",
+      "verified": true
+    },
+    {
+      "name": "Predictive optimization",
+      "pillar": "Performance",
+      "principle": "Query optimization",
+      "score": 1,
+      "finding_notes": "Unity Catalog in use. Enable predictive optimization for auto OPTIMIZE/VACUUM on managed tables.",
+      "verified": true
+    },
+    {
+      "name": "Liquid clustering",
+      "pillar": "Performance",
+      "principle": "Data patterns",
+      "score": 1,
+      "finding_notes": "Unity Catalog in use. Migrate from Z-ORDER/partitioning to liquid clustering for better performance.",
+      "verified": true
+    },
+    {
+      "name": "Graviton instance types",
+      "pillar": "Performance",
+      "principle": "Scaling and serverless",
+      "score": 0,
+      "finding_notes": "No Graviton instances across 20 clusters (AWS). Adopt for best price-to-performance.",
+      "verified": true
+    },
+    {
+      "name": "Standard access mode",
+      "pillar": "Performance",
+      "principle": "Scaling and serverless",
+      "score": 2,
+      "finding_notes": "8/20 cluster(s) use standard/shared access mode with UC isolation.",
+      "verified": true
+    },
+    {
+      "name": "Query failure rate (deep)",
+      "pillar": "Performance",
+      "principle": "Monitoring and tuning",
+      "score": 1,
+      "finding_notes": "Requires --deep scan with system tables. Cannot assess query failure rate from API alone.",
+      "verified": false
+    },
+    {
+      "name": "Slow query prevalence (deep)",
+      "pillar": "Performance",
+      "principle": "Monitoring and tuning",
+      "score": 1,
+      "finding_notes": "Requires --deep scan with system tables. Cannot assess slow queries from API alone.",
+      "verified": false
+    },
+    {
+      "name": "Warehouse utilization balance (deep)",
+      "pillar": "Performance",
+      "principle": "Scaling and serverless",
+      "score": 1,
+      "finding_notes": "Requires --deep scan with system tables. Cannot assess warehouse utilization from API alone.",
+      "verified": false
+    },
+    {
+      "name": "Optimized formats",
+      "pillar": "Cost",
+      "principle": "Optimized formats and compute",
+      "score": 1,
+      "finding_notes": "Unity Catalog + Delta Lake in use but cannot verify all tables use Delta format from API.",
+      "verified": false
+    },
+    {
+      "name": "Job clusters",
+      "pillar": "Cost",
+      "principle": "Optimized formats and compute",
+      "score": 1,
+      "finding_notes": "Jobs present but not using job clusters. Use job clusters for cost efficiency.",
+      "verified": true
+    },
+    {
+      "name": "SQL for SQL",
+      "pillar": "Cost",
+      "principle": "Right-sizing",
+      "score": 2,
+      "finding_notes": "SQL Warehouses used for SQL workloads (51 warehouses).",
+      "verified": true
+    },
+    {
+      "name": "Up-to-date runtimes",
+      "pillar": "Cost",
+      "principle": "Optimized formats and compute",
+      "score": 2,
+      "finding_notes": "Clusters use recent runtimes (e.g. 17.3.x-scala2.13). 16/20 up-to-date.",
+      "verified": true
+    },
+    {
+      "name": "GPU right workloads",
+      "pillar": "Cost",
+      "principle": "Right-sizing",
+      "score": 2,
+      "finding_notes": "No GPU clusters \u2014 cost-efficient instance selection.",
+      "verified": true
+    },
+    {
+      "name": "Serverless",
+      "pillar": "Cost",
+      "principle": "Optimized formats and compute",
+      "score": 2,
+      "finding_notes": "50 SQL warehouse(s) with Pro or serverless compute.",
+      "verified": true
+    },
+    {
+      "name": "Right instance type",
+      "pillar": "Cost",
+      "principle": "Right-sizing",
+      "score": 1,
+      "finding_notes": "Define policies to restrict instance types.",
+      "verified": true
+    },
+    {
+      "name": "Efficient compute size",
+      "pillar": "Cost",
+      "principle": "Right-sizing",
+      "score": 2,
+      "finding_notes": "8 cluster(s) with autoscaling for right-sizing.",
+      "verified": true
+    },
+    {
+      "name": "Performance engines",
+      "pillar": "Cost",
+      "principle": "Optimized formats and compute",
+      "score": 2,
+      "finding_notes": "Photon enabled on 6 cluster(s) for better resilience.",
+      "verified": true
+    },
+    {
+      "name": "Auto-scaling",
+      "pillar": "Cost",
+      "principle": "Auto-scaling and termination",
+      "score": 2,
+      "finding_notes": "Auto-scaling enabled: 8 cluster(s), 14 warehouse(s) with multi-cluster.",
+      "verified": true
+    },
+    {
+      "name": "Auto-termination",
+      "pillar": "Cost",
+      "principle": "Auto-scaling and termination",
+      "score": 2,
+      "finding_notes": "Auto-termination configured: 0 cluster(s), 51 warehouse(s).",
+      "verified": true
+    },
+    {
+      "name": "Cluster policies costs",
+      "pillar": "Cost",
+      "principle": "Right-sizing",
+      "score": 1,
+      "finding_notes": "Clusters present but no policies. Define cluster policies.",
+      "verified": true
+    },
+    {
+      "name": "Monitor costs",
+      "pillar": "Cost",
+      "principle": "Cost monitoring",
+      "score": 1,
+      "finding_notes": "Cost tagging not verifiable from API. Add tags for cost allocation.",
+      "verified": false
+    },
+    {
+      "name": "Tag clusters",
+      "pillar": "Cost",
+      "principle": "Cost monitoring",
+      "score": 2,
+      "finding_notes": "9 cluster(s) with custom tags for cost allocation.",
+      "verified": true
+    },
+    {
+      "name": "Chargeback",
+      "pillar": "Cost",
+      "principle": "Cost monitoring",
+      "score": 1,
+      "finding_notes": "Cost tagging not verifiable from API. Add tags for cost allocation.",
+      "verified": false
+    },
+    {
+      "name": "Cost reports",
+      "pillar": "Cost",
+      "principle": "Cost monitoring",
+      "score": 1,
+      "finding_notes": "Cost tagging not verifiable from API. Add tags for cost allocation.",
+      "verified": false
+    },
+    {
+      "name": "Streaming balance",
+      "pillar": "Cost",
+      "principle": "Right-sizing",
+      "score": 1,
+      "finding_notes": "Streaming cost/throughput balance not verifiable. Tune micro-batch size.",
+      "verified": false
+    },
+    {
+      "name": "On-demand vs reserved",
+      "pillar": "Cost",
+      "principle": "Optimized formats and compute",
+      "score": 1,
+      "finding_notes": "Evaluate AWS Reserved Instances or Savings Plans for predictable workloads.",
+      "verified": true
+    },
+    {
+      "name": "Spot instance strategy",
+      "pillar": "Cost",
+      "principle": "Right-sizing",
+      "score": 2,
+      "finding_notes": "18/20 cluster(s) use Spot instances for cost savings (AWS).",
+      "verified": true
+    },
+    {
+      "name": "Budget alerts",
+      "pillar": "Cost",
+      "principle": "Cost monitoring",
+      "score": 1,
+      "finding_notes": "Configure Databricks budget alerts in Account Console. Also set up AWS Cost Explorer and billing alarms.",
+      "verified": true
+    },
+    {
+      "name": "Idle cluster waste (deep)",
+      "pillar": "Cost",
+      "principle": "Eliminate waste",
+      "score": 1,
+      "finding_notes": "Requires --deep scan with system tables. Cannot assess idle cluster waste from API alone.",
+      "verified": false
+    },
+    {
+      "name": "Cost trend analysis (deep)",
+      "pillar": "Cost",
+      "principle": "Cost monitoring",
+      "score": 1,
+      "finding_notes": "Requires --deep scan with system tables. Cannot assess cost trends from API alone.",
+      "verified": false
+    },
+    {
+      "name": "DBU concentration risk (deep)",
+      "pillar": "Cost",
+      "principle": "Cost monitoring",
+      "score": 1,
+      "finding_notes": "Requires --deep scan with system tables. Cannot assess concentration risk from API alone.",
+      "verified": false
+    }
+  ],
+  "overall_score": 1.28,
+  "verified_score": 1.42,
+  "coverage_pct": 65.7,
+  "maturity_level": "Established",
+  "assessment_date": "2026-04-02T16:03:14Z",
+  "workspace_host": "https://e2-demo-field-eng.cloud.databricks.com",
+  "cloud_provider": "aws",
+  "pillar_verified_scores": {
+    "Data & AI Governance": 0.8571428571428571,
+    "Interoperability & Usability": 1.4615384615384615,
+    "Operational Excellence": 1.4285714285714286,
+    "Security": 1.1111111111111112,
+    "Reliability": 1.5555555555555556,
+    "Performance": 1.7222222222222223,
+    "Cost": 1.6666666666666667
+  },
+  "pillar_coverage": {
+    "Data & AI Governance": 93.33333333333333,
+    "Interoperability & Usability": 86.66666666666667,
+    "Operational Excellence": 58.333333333333336,
+    "Security": 64.28571428571429,
+    "Reliability": 42.857142857142854,
+    "Performance": 64.28571428571429,
+    "Cost": 65.21739130434783
+  }
+}

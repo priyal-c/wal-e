@@ -52,21 +52,15 @@ resources:
               alert_email: ${var.alert_email}
               scan_mode: standard
               warehouse_id: ""
-          new_cluster:
-            spark_version: "15.4.x-scala2.12"
-            node_type_id: "i3.xlarge"
-            num_workers: 0
-            spark_conf:
-              spark.databricks.cluster.profile: singleNode
-              spark.master: "local[*]"
-            custom_tags:
-              ResourceClass: SingleNode
-          libraries:
-            - pypi:
-                package: python-pptx
-            - pypi:
-                package: python-docx
+          environment_key: wal_e_env
           timeout_seconds: 1800
+      environments:
+        - environment_key: wal_e_env
+          spec:
+            client: "1"
+            dependencies:
+              - python-pptx
+              - python-docx
 
     wal_e_deep_scan:
       name: "WAL-E Deep Scan (with System Tables)"
@@ -95,21 +89,15 @@ resources:
               alert_email: ${var.alert_email}
               scan_mode: deep
               warehouse_id: auto
-          new_cluster:
-            spark_version: "15.4.x-scala2.12"
-            node_type_id: "i3.xlarge"
-            num_workers: 0
-            spark_conf:
-              spark.databricks.cluster.profile: singleNode
-              spark.master: "local[*]"
-            custom_tags:
-              ResourceClass: SingleNode
-          libraries:
-            - pypi:
-                package: python-pptx
-            - pypi:
-                package: python-docx
+          environment_key: wal_e_env
           timeout_seconds: 3600
+      environments:
+        - environment_key: wal_e_env
+          spec:
+            client: "1"
+            dependencies:
+              - python-pptx
+              - python-docx
 
 targets:
   dev:
