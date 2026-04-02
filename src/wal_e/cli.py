@@ -199,13 +199,15 @@ def _run_assess_foreground(args: argparse.Namespace, config: Any, engine: Any) -
 
     _print_banner(args.quiet)
     if not args.quiet:
-        from wal_e.core.config import CLOUD_DISPLAY_NAMES
+        from wal_e.core.config import AUTH_DISPLAY_NAMES, CLOUD_DISPLAY_NAMES
         cloud_label = CLOUD_DISPLAY_NAMES.get(config.cloud_provider, config.cloud_provider)
         cloud_color = {
             "aws": C.YELLOW, "azure": C.BLUE, "gcp": C.CYAN,
         }.get(config.cloud_provider, C.DIM)
+        auth_label = AUTH_DISPLAY_NAMES.get(config.auth_type, config.auth_type)
         print(f"{C.BLUE}Profile:{C.RESET} {args.profile}  {C.BLUE}Output:{C.RESET} {args.output}")
         print(f"{C.BLUE}Cloud:{C.RESET}   {cloud_color}{cloud_label}{C.RESET}")
+        print(f"{C.BLUE}Auth:{C.RESET}    {auth_label}")
         if config.deep_scan:
             print(f"{C.BLUE}Mode:{C.RESET}    {C.GREEN}Deep Scan{C.RESET} (system tables via warehouse {config.warehouse_id})")
         else:
@@ -443,8 +445,13 @@ def _auto_discover_warehouse(profile: str) -> str:
 
 
 def _run_assess(args: argparse.Namespace) -> int:
-    from wal_e.core.config import WalEConfig
+    from wal_e.core.config import AUTH_TYPE_AUTO, VALID_AUTH_TYPES, WalEConfig
     from wal_e.core.engine import AssessmentEngine
+
+    auth_type = getattr(args, "auth_type", AUTH_TYPE_AUTO)
+    if auth_type not in VALID_AUTH_TYPES:
+        print(f"{C.RED}Error:{C.RESET} Invalid --auth-type '{auth_type}'. Choose from: {', '.join(VALID_AUTH_TYPES)}")
+        return 1
 
     deep = getattr(args, "deep", False)
     wh_id = getattr(args, "warehouse_id", "")
@@ -463,6 +470,7 @@ def _run_assess(args: argparse.Namespace) -> int:
         formats=args.format or ["md", "csv", "pptx", "audit", "docx"],
         deep_scan=deep,
         warehouse_id=wh_id,
+        auth_type=auth_type,
     )
     engine = AssessmentEngine(config)
 
@@ -530,10 +538,18 @@ def _interactive_assess(args: argparse.Namespace, config: Any, engine: Any) -> b
 
 
 def _run_validate(args: argparse.Namespace) -> int:
-    from wal_e.core.config import WalEConfig
+    from wal_e.core.config import AUTH_DISPLAY_NAMES, AUTH_TYPE_AUTO, VALID_AUTH_TYPES, WalEConfig
+
+    auth_type = getattr(args, "auth_type", AUTH_TYPE_AUTO)
+    if auth_type not in VALID_AUTH_TYPES:
+        print(f"{C.RED}Error:{C.RESET} Invalid --auth-type '{auth_type}'. Choose from: {', '.join(VALID_AUTH_TYPES)}")
+        return 1
 
     _print_banner(args.quiet)
-    config = WalEConfig(profile_name=args.profile)
+    config = WalEConfig(profile_name=args.profile, auth_type=auth_type)
+    if not args.quiet:
+        auth_label = AUTH_DISPLAY_NAMES.get(config.auth_type, config.auth_type)
+        print(f"{C.BLUE}Auth method:{C.RESET} {auth_label}\n")
     ok, msg = config.validate()
     if ok:
         if not args.quiet:
@@ -550,23 +566,54 @@ def _print_access_guide() -> None:
 {C.DIM}══════════════════════════════════════════════════════════════{C.RESET}
 
 {C.GREEN}You run WAL-E on YOUR machine. Your SA guides you.{C.RESET}
-{C.GREEN}No tokens or data leave your environment.{C.RESET}
+{C.GREEN}No credentials or data leave your environment.{C.RESET}
 
 WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
 {C.GREEN}Zero writes. Zero data access. Zero resource modifications.{C.RESET}
 
-{C.BOLD}STEP 1: CREATE A PAT TOKEN (1 minute){C.RESET}
+{C.BOLD}STEP 1: CHOOSE YOUR AUTHENTICATION METHOD{C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
-  Log into your workspace as a {C.YELLOW}workspace admin{C.RESET}:
-  1. Click your username (top-right) > {C.BOLD}Settings{C.RESET}
-  2. Go to {C.BOLD}Developer{C.RESET} > {C.BOLD}Access tokens{C.RESET} > {C.BOLD}Generate New Token{C.RESET}
-  3. Description: {C.DIM}"WAL-E Assessment - [today's date]"{C.RESET}
+  WAL-E supports two authentication methods. Choose whichever
+  fits your organization's security policy.
+
+  ┌─────────────────────────────────────────────────────────────┐
+  │  {C.GREEN}Option A: OAuth User-to-Machine (recommended){C.RESET}             │
+  │                                                             │
+  │  Browser-based login. Short-lived tokens managed            │
+  │  automatically by the CLI. No manual token management.      │
+  │  Tokens expire in < 1 hour, reducing exposure risk.         │
+  │                                                             │
+  │  {C.BOLD}Best for:{C.RESET} Organizations that prefer SSO/IdP login,       │
+  │  want to avoid long-lived PAT tokens, or have PAT           │
+  │  creation disabled.                                         │
+  └─────────────────────────────────────────────────────────────┘
+  ┌─────────────────────────────────────────────────────────────┐
+  │  {C.YELLOW}Option B: Personal Access Token (PAT){C.RESET}                    │
+  │                                                             │
+  │  Create a short-lived token in your workspace settings.     │
+  │  Simple and works in all environments, but requires         │
+  │  manual token lifecycle management.                         │
+  │                                                             │
+  │  {C.BOLD}Best for:{C.RESET} Environments without SSO configured, air-      │
+  │  gapped workspaces, or when scripted/non-interactive        │
+  │  access is required.                                        │
+  └─────────────────────────────────────────────────────────────┘
+
+{C.BOLD}STEP 2: AUTHENTICATE (1-2 minutes){C.RESET}
+{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
+
+  {C.GREEN}Option A — OAuth U2M:{C.RESET}
+  {C.CYAN}${C.RESET} databricks auth login --host https://YOUR-WORKSPACE-URL
+  {C.DIM}# A browser window opens for you to log in via your IdP / SSO.{C.RESET}
+  {C.DIM}# When prompted for a profile name, enter: wal-assessment{C.RESET}
+
+  {C.YELLOW}Option B — PAT:{C.RESET}
+  1. Log into your workspace as a {C.YELLOW}workspace admin{C.RESET}
+  2. Click your username (top-right) > {C.BOLD}Settings{C.RESET}
+  3. Go to {C.BOLD}Developer{C.RESET} > {C.BOLD}Access tokens{C.RESET} > {C.BOLD}Generate New Token{C.RESET}
   4. Lifetime: {C.GREEN}1 day{C.RESET} (assessment takes ~15 minutes)
-  5. Click {C.BOLD}Generate{C.RESET} and copy the token
-
-{C.BOLD}STEP 2: CONFIGURE THE DATABRICKS CLI (1 minute){C.RESET}
-{C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
+  5. Click {C.BOLD}Generate{C.RESET} and copy the token, then:
 
   {C.CYAN}${C.RESET} databricks configure --profile wal-assessment \\
       --host https://YOUR-WORKSPACE-URL --token
@@ -600,9 +647,13 @@ WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
 {C.BOLD}STEP 6: CLEAN UP (1 minute){C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
-  1. Revoke your token: Settings > Developer > Access tokens > Revoke
-  2. Remove CLI profile: edit ~/.databrickscfg, delete [wal-assessment]
-  3. Delete local files: rm -rf ./my-assessment
+  {C.GREEN}OAuth U2M:{C.RESET}  Nothing to do — tokens expire automatically in < 1 hour.
+              To remove the profile: edit ~/.databrickscfg, delete [wal-assessment]
+
+  {C.YELLOW}PAT:{C.RESET}       Revoke your token: Settings > Developer > Access tokens > Revoke
+              Remove CLI profile: edit ~/.databrickscfg, delete [wal-assessment]
+
+  Both:       Delete local files: rm -rf ./my-assessment
 
 {C.BOLD}COVERAGE BY ACCESS LEVEL{C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
@@ -652,11 +703,11 @@ WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
   {C.GREEN}+{C.RESET} YOU run everything on YOUR machine
-  {C.GREEN}+{C.RESET} Your token NEVER leaves your environment
+  {C.GREEN}+{C.RESET} Credentials NEVER leave your environment
   {C.GREEN}+{C.RESET} All calls are HTTPS/TLS encrypted to YOUR workspace
   {C.GREEN}+{C.RESET} Results are stored locally on YOUR machine only
   {C.GREEN}+{C.RESET} Complete audit trail so you can verify every API call
-  {C.GREEN}+{C.RESET} Token auto-expires in 1 day (or revoke immediately)
+  {C.GREEN}+{C.RESET} OAuth tokens expire in < 1 hour; PAT tokens in 1 day
 
   {C.RED}-{C.RESET} NEVER reads table data, file contents, or query results
   {C.RED}-{C.RESET} NEVER executes notebooks, jobs, or pipelines
@@ -688,6 +739,7 @@ WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
   {C.DIM}Deep scan is optional. Standard mode works perfectly with just APIs.{C.RESET}
 
 {C.DIM}Full documentation: ACCESS_GUIDE.md in the WAL-E repo{C.RESET}
+{C.DIM}Databricks auth docs: https://docs.databricks.com/dev-tools/cli/authentication{C.RESET}
 """
     print(guide)
 
@@ -773,6 +825,12 @@ def main() -> int:
     assess_parser.add_argument("--profile", default="DEFAULT", help="Databricks CLI profile (default: DEFAULT)")
     assess_parser.add_argument("-o", "--output", default="./wal-e-assessment", help="Output directory (default: ./wal-e-assessment)")
     assess_parser.add_argument("--format", action="append", choices=["md", "csv", "pptx", "audit", "docx", "all"], default=None, help="Output formats (default: all). Use 'docx' for remediation guide.")
+    assess_parser.add_argument("--auth-type", default="auto", dest="auth_type",
+                               choices=["auto", "pat", "oauth-u2m"],
+                               help="Authentication method (default: auto). "
+                                    "'pat' for Personal Access Token, "
+                                    "'oauth-u2m' for OAuth User-to-Machine browser login, "
+                                    "'auto' to detect from your CLI profile.")
     assess_parser.add_argument("--interactive", action="store_true", help="Interactive mode with step-by-step prompts")
     assess_parser.add_argument("--quiet", action="store_true", help="Suppress progress output")
     assess_parser.add_argument("--timeout", type=int, default=600, metavar="SECONDS",
@@ -793,6 +851,10 @@ def main() -> int:
 
     validate_parser = subparsers.add_parser("validate", help="Validate workspace access")
     validate_parser.add_argument("--profile", default="DEFAULT", help="Databricks CLI profile")
+    validate_parser.add_argument("--auth-type", default="auto", dest="auth_type",
+                                 choices=["auto", "pat", "oauth-u2m"],
+                                 help="Authentication method (default: auto). "
+                                      "'pat' for PAT, 'oauth-u2m' for OAuth browser login.")
     validate_parser.add_argument("--quiet", action="store_true", help="Suppress banner")
     validate_parser.set_defaults(func=_run_validate)
 

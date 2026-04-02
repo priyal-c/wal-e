@@ -11,6 +11,23 @@ from wal_e.collectors.base import BaseCollector
 class AuthCollector(BaseCollector):
     """Collects authentication and identity information."""
 
+    def _parse_auth_type(self, auth_output: str) -> str:
+        """Extract the authentication type from `databricks auth describe` output."""
+        for line in auth_output.splitlines():
+            stripped = line.strip().lower()
+            if stripped.startswith("auth type:") or stripped.startswith("authentication type:"):
+                value = line.split(":", 1)[-1].strip()
+                if "oauth" in value.lower() or "u2m" in value.lower():
+                    return "oauth-u2m"
+                if "pat" in value.lower() or "token" in value.lower():
+                    return "pat"
+                return value
+        if "oauth" in auth_output.lower():
+            return "oauth-u2m"
+        if "pat" in auth_output.lower() or "personal access token" in auth_output.lower():
+            return "pat"
+        return "unknown"
+
     def collect(self) -> dict[str, Any]:
         """Collect auth describe and current-user me."""
         findings: dict[str, Any] = {
@@ -19,9 +36,9 @@ class AuthCollector(BaseCollector):
             "roles": [],
             "instance_profiles": [],
             "auth_config": {},
+            "auth_method": "unknown",
         }
 
-        # Auth describe - CLI config
         cmd_auth = [
             "databricks",
             "auth",
@@ -33,6 +50,7 @@ class AuthCollector(BaseCollector):
         if ok_auth and output_auth:
             try:
                 findings["auth_config"] = {"raw": output_auth}
+                findings["auth_method"] = self._parse_auth_type(output_auth)
                 if "User:" in output_auth:
                     for line in output_auth.splitlines():
                         if line.strip().startswith("User:"):
