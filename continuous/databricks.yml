@@ -1,0 +1,122 @@
+bundle:
+  name: wal-e-continuous
+
+variables:
+  catalog:
+    default: wal_e
+    description: Unity Catalog name for WAL-E tables
+  schema:
+    default: continuous
+    description: Schema name for WAL-E tables
+  profile:
+    default: DEFAULT
+    description: Databricks CLI profile for authentication
+  auth_type:
+    default: auto
+    description: "Authentication method: auto, pat, or oauth-u2m"
+  slack_webhook_url:
+    default: ""
+    description: Slack incoming webhook URL for drift alerts (optional)
+  alert_email:
+    default: ""
+    description: Email address for drift alerts (optional)
+  scan_schedule:
+    default: "0 0 8 * * ?"
+    description: "Quartz cron for scan frequency (default: daily at 8am UTC)"
+
+resources:
+  jobs:
+    wal_e_continuous_scan:
+      name: "WAL-E Continuous Scan"
+      description: |
+        Runs a full WAL-E Well-Architected assessment on a schedule,
+        stores results in Delta, detects drift from the last baseline,
+        and sends alerts on regressions.
+      schedule:
+        quartz_cron_expression: ${var.scan_schedule}
+        timezone_id: UTC
+      tags:
+        project: wal-e
+        type: continuous-scan
+      tasks:
+        - task_key: wal_e_scan
+          description: "Run WAL-E assessment and write results to Delta"
+          notebook_task:
+            notebook_path: ./src/wal_e_scan.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              profile: ${var.profile}
+              auth_type: ${var.auth_type}
+              slack_webhook_url: ${var.slack_webhook_url}
+              alert_email: ${var.alert_email}
+              scan_mode: standard
+              warehouse_id: ""
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: "i3.xlarge"
+            num_workers: 0
+            spark_conf:
+              spark.databricks.cluster.profile: singleNode
+              spark.master: "local[*]"
+            custom_tags:
+              ResourceClass: SingleNode
+          libraries:
+            - pypi:
+                package: python-pptx
+            - pypi:
+                package: python-docx
+          timeout_seconds: 1800
+
+    wal_e_deep_scan:
+      name: "WAL-E Deep Scan (with System Tables)"
+      description: |
+        Full WAL-E assessment including system table queries for
+        operational metrics (cost, performance, audit events).
+        Runs weekly by default.
+      schedule:
+        quartz_cron_expression: "0 0 6 ? * MON"
+        timezone_id: UTC
+        pause_status: PAUSED
+      tags:
+        project: wal-e
+        type: deep-scan
+      tasks:
+        - task_key: wal_e_deep_scan
+          description: "Deep scan with system tables"
+          notebook_task:
+            notebook_path: ./src/wal_e_scan.py
+            base_parameters:
+              catalog: ${var.catalog}
+              schema: ${var.schema}
+              profile: ${var.profile}
+              auth_type: ${var.auth_type}
+              slack_webhook_url: ${var.slack_webhook_url}
+              alert_email: ${var.alert_email}
+              scan_mode: deep
+              warehouse_id: auto
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: "i3.xlarge"
+            num_workers: 0
+            spark_conf:
+              spark.databricks.cluster.profile: singleNode
+              spark.master: "local[*]"
+            custom_tags:
+              ResourceClass: SingleNode
+          libraries:
+            - pypi:
+                package: python-pptx
+            - pypi:
+                package: python-docx
+          timeout_seconds: 3600
+
+targets:
+  dev:
+    mode: development
+    default: true
+
+  production:
+    mode: production
+    variables:
+      scan_schedule: "0 0 8 * * ?"
