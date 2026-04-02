@@ -74,11 +74,11 @@ The assessment’s scoring model is the **Well-Architected Lakehouse Framework**
 | Concern                     | How WAL-E Handles It                                                                       |
 | --------------------------- | ------------------------------------------------------------------------------------------ |
 | **Who runs it?**            | The **customer** runs WAL-E on their own machine                                           |
-| **Token sharing?**          | **None** — the customer creates and uses their own token locally                           |
+| **Token sharing?**          | **None** — the customer authenticates locally (PAT token or OAuth browser login)            |
 | **Where do results go?**    | **Stays on the customer's machine** — nothing is transmitted externally                    |
 | **What does the SA see?**   | Only what the customer **chooses to share** (e.g., via screen share or sending the report) |
 | **What does WAL-E access?** | **Metadata only** — never reads table data, file contents, or secret values                |
-| **How to clean up?**        | Customer revokes their own token and deletes local results                                 |
+| **How to clean up?**        | Customer revokes their PAT token (or OAuth session expires automatically) and deletes local results |
 
 ---
 
@@ -108,12 +108,20 @@ pip install -e .
 
 ### Step 2: Configure Workspace Access
 
+**Option A: OAuth (recommended)** — no token to manage, session expires automatically:
+
 ```bash
-# Configure your Databricks CLI (you'll need your workspace URL)
+databricks auth login --host https://YOUR-WORKSPACE.cloud.databricks.com \
+  --profile wal-assessment
+# Opens a browser window — log in with your workspace credentials
+```
+
+**Option B: PAT token** — if OAuth isn't available in your environment:
+
+```bash
 databricks configure --profile wal-assessment \
   --host https://YOUR-WORKSPACE.cloud.databricks.com \
   --token
-
 # When prompted, paste a PAT token you created as workspace admin
 # (Settings > Developer > Access tokens > Generate — set lifetime to 1 day)
 ```
@@ -179,8 +187,9 @@ This means: of the performance BPs that WAL-E could verify (64%), the workspace 
 ### Step 6: Clean Up
 
 ```bash
-# Revoke your PAT token immediately after the assessment:
+# If you used a PAT token, revoke it immediately after the assessment:
 # Workspace > Settings > Developer > Access tokens > Revoke
+# (If you used OAuth, your session expires automatically — no action needed)
 
 # Delete the CLI profile:
 # Edit ~/.databrickscfg and remove the [wal-assessment] section
@@ -205,7 +214,7 @@ As the SA, you don't need access to the customer's workspace. Your role is to gu
 2. On the Call (Customer shares their screen)
    - Guide them through 'git clone https://github.com/priyal-c/wal-e.git' and pip install
    - Walk them through 'databricks configure' with their own workspace URL
-   - Have them create a short-lived PAT token (1 day lifetime)
+   - Have them authenticate via OAuth ('databricks auth login') or create a short-lived PAT token (1 day lifetime)
    - Run 'wal-e validate' to confirm access
    - Run 'wal-e assess --interactive' together
 
@@ -213,7 +222,7 @@ As the SA, you don't need access to the customer's workspace. Your role is to gu
    - Ask the customer to share the output folder (or screen share the results)
    - Walk through the readout deck together
    - Discuss findings and remediation priorities
-   - Customer revokes their PAT token
+   - Customer revokes their PAT token (or confirms OAuth session will expire)
 ```
 
 ### Showing the Setup Guide to Customers
