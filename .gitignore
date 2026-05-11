@@ -46,3 +46,5 @@ token.json
 .env
 .env.local
 wal-e-assessment/
+uv.lock
+excalidraw.log
