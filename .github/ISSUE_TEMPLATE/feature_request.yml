@@ -1,0 +1,25 @@
+name: Feature Request
+description: Suggest a new best practice, collector, reporter, or improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      placeholder: e.g. WAL-E doesn't check whether predictive optimization is enabled.
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      placeholder: e.g. Add best practice perf-026 checking GET /api/2.0/unity-catalog/metastores for predictive_optimization_enabled.
+    validations:
+      required: true
+
+  - type: input
+    id: context
+    attributes:
+      label: Pillar / API / system table (if applicable)
+      placeholder: e.g. Performance Efficiency, system.billing.usage
