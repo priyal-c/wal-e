@@ -1,0 +1,34 @@
+name: Bug Report
+description: Something is broken or producing incorrect results
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      placeholder: e.g. Cluster policies always score 0 even though policies exist.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run `wal-e assess --profile ...`
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: input
+    id: context
+    attributes:
+      label: Cloud / best practice ID (if applicable)
+      placeholder: e.g. AWS, int-011

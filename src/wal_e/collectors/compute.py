@@ -81,7 +81,7 @@ class ComputeCollector(BaseCollector):
                     })
 
         # Cluster policies
-        data, ok = self.run_api_call("/api/2.0/cluster-policies/list")
+        data, ok = self.run_api_call("/api/2.0/policies/clusters/list")
         if ok and data:
             policies = data.get("policies", []) or []
             findings["policy_count"] = len(policies)
