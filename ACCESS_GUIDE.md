@@ -84,12 +84,14 @@ You need these on **your** machine (the customer's machine):
 | Requirement | Details | Install |
 |-------------|---------|---------|
 | **Python** | 3.10 or newer | [python.org](https://python.org) |
-| **Databricks CLI** | v0.200+ | `pip install databricks-cli` or `brew install databricks` |
+| **Databricks CLI** | v0.200+ | `brew install databricks` (recommended) or `python3.10 -m pip install databricks-cli` |
 | **Git** | For cloning WAL-E | Usually pre-installed on Mac/Linux |
 | **GitHub CLI** | Optional, for easy cloning | `brew install gh` or [cli.github.com](https://cli.github.com) |
 | **Network** | Outbound HTTPS (443) to your Databricks workspace URL | Usually already available |
 
 Your SA can help you verify these during the setup call.
+
+> **Heads up — use `python3.10 -m pip`, not a bare `pip`.** `pip`, `pip3`, and `pip3.10` can each be bound to a *different* Python interpreter. If your bare `pip` points at an older Python, the install fails with `requires a different Python: 3.x not in '>=3.10'` or `pip: command not found`. Running `python3.10 -m pip` (substitute your exact minor version, e.g. `python3.11`) forces the install into the right interpreter. The `./install.sh` script auto-detects a 3.10+ interpreter for you.
 
 ---
 
@@ -101,11 +103,14 @@ Your SA will walk you through these steps on a screen share call.
 
 ```bash
 # Clone the repository
-gh repo clone priyal-chindarkar_data/wal-e
+gh repo clone priyal-c/wal-e
 cd wal-e
 
-# Install WAL-E
-pip install -e .
+# Recommended: installer auto-detects a Python 3.10+ interpreter
+./install.sh --cli
+
+# Or install manually, invoking pip through your Python 3.10+ interpreter
+python3.10 -m pip install -e .
 
 # Verify installation
 wal-e --version
@@ -344,12 +349,26 @@ You can review this audit report with your security team before sharing any resu
 
 | Symptom | Cause | Solution |
 |---------|-------|----------|
+| `pip: command not found`, or `requires a different Python: 3.x not in '>=3.10'`, or `wal-e: command not found` after install | Bare `pip`/`pip3` is bound to a different/older interpreter than your Python 3.10+ | Install via the module form: `python3.10 -m pip install -e .` (substitute your exact minor version, e.g. `python3.11`). Or just run `./install.sh --cli`, which auto-detects a 3.10+ interpreter |
 | `401 Unauthorized` | Token expired or invalid | Regenerate your PAT token |
 | `403 Forbidden` on workspace-conf | User is not workspace admin | Create token from a workspace admin account |
 | `403 Forbidden` on catalogs | User lacks metastore admin | Use a metastore admin account |
 | Empty cluster list | User lacks CAN_ATTACH_TO | Use an admin account |
 | `Connection refused` | Network/firewall blocking | Verify your workspace URL; check VPN/proxy |
 | `SSL certificate error` | Corporate proxy intercepting | Set `REQUESTS_CA_BUNDLE` or ask your IT team |
+
+### Diagnosing a Python / pip mismatch
+
+If the install fails or `wal-e` can't be found afterward, check which interpreter each command maps to:
+
+```bash
+# Show every python/pip on PATH and the interpreter each pip is bound to
+which -a python3 python3.10 pip pip3 pip3.10 2>/dev/null
+python3.10 -c "import sys; print('interpreter:', sys.executable, sys.version.split()[0])"
+python3.10 -m pip --version   # confirms this pip targets your 3.10+ interpreter
+```
+
+Install through whichever interpreter reports 3.10 or newer, using `<that-python> -m pip install -e .`.
 
 ### Permissions by Coverage
 
@@ -376,7 +395,7 @@ You'll run everything on YOUR machine — I'll guide you through it on the call.
 
 Before the call, please:
   1. Install Python 3.10+ (python.org)
-  2. Install Databricks CLI: pip install databricks-cli
+  2. Install Databricks CLI: brew install databricks (or python3.10 -m pip install databricks-cli)
   3. Install GitHub CLI: brew install gh (or cli.github.com)
   4. Have your Databricks workspace URL ready
   5. Have workspace admin access (and metastore admin if possible)

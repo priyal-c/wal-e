@@ -43,7 +43,7 @@ usage() {
   echo "  --cursor        Install WAL-E as a Cursor AI skill (copies rules + installs pip package)"
   echo "  --claude        Install WAL-E as a Claude Code skill (copies SKILL.md to ~/.codex/skills/)"
   echo "  --mcp           Register WAL-E as an MCP server for Claude Code / AI Dev Kit"
-  echo "  --cli           Install WAL-E CLI only (pip install -e .)"
+  echo "  --cli           Install WAL-E CLI only (auto-detects Python 3.10+, uses python -m pip)"
   echo "  --all           Install everything: CLI + Cursor + Claude + MCP"
   echo "  --uninstall     Remove WAL-E from all integration points"
   echo "  -h, --help      Show this help message"
@@ -57,37 +57,69 @@ usage() {
 }
 
 # ============================================================================
-# Install CLI (pip install -e .)
+# Find a Python interpreter that satisfies WAL-E's >=3.10 requirement
+#
+# Why this matters: bare `pip` / `pip3` are separate executables, each bound
+# (via shebang) to a specific interpreter that is often NOT the Python the
+# customer just installed. Driving the install through an explicit
+# `<python> -m pip` guarantees pip and the install target are the same 3.10+
+# interpreter, which avoids "requires a different Python" failures and silent
+# wrong-environment installs.
+# ============================================================================
+find_python() {
+  local candidates=(python3.13 python3.12 python3.11 python3.10 python3 python)
+  local c
+  for c in "${candidates[@]}"; do
+    if command -v "$c" &> /dev/null \
+       && "$c" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' 2> /dev/null; then
+      command -v "$c"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# ============================================================================
+# Install CLI (<python> -m pip install -e .)
 # ============================================================================
 install_cli() {
-  info "Installing WAL-E CLI via pip..."
-  if command -v pip3 &> /dev/null; then
-    PIP=pip3
-  elif command -v pip &> /dev/null; then
-    PIP=pip
-  else
-    error "pip not found. Please install Python 3.10+ first."
+  info "Installing WAL-E CLI..."
+
+  local PY
+  if ! PY="$(find_python)"; then
+    error "No Python >=3.10 found on PATH (WAL-E requires Python 3.10+)."
+    error "Install it from https://python.org, then re-run ./install.sh"
+    error "Tip: a bare 'pip' often points at an older Python — that's why this check exists."
     exit 1
   fi
+  info "Using $("$PY" --version 2>&1) at $PY"
 
-  # Check Python version
-  PYTHON_VERSION=$($PIP --version 2>/dev/null | grep -oP 'python \K[0-9]+\.[0-9]+' || echo "unknown")
+  # Ensure pip is available for this interpreter (some minimal installs omit it)
+  if ! "$PY" -m pip --version &> /dev/null; then
+    warn "pip is not available for $PY; bootstrapping it with ensurepip..."
+    if ! "$PY" -m ensurepip --upgrade &> /dev/null; then
+      error "Could not bootstrap pip. Run manually: $PY -m ensurepip --upgrade"
+      exit 1
+    fi
+  fi
 
-  # Try standard install first, fall back to --break-system-packages
-  if $PIP install -e "$SCRIPT_DIR" 2>/dev/null; then
+  # Always invoke pip via the SAME interpreter (module form), never bare pip/pip3.
+  # Try a standard install first, fall back to --break-system-packages (PEP 668).
+  if "$PY" -m pip install -e "$SCRIPT_DIR" 2> /dev/null; then
     success "WAL-E CLI installed successfully."
-  elif $PIP install --break-system-packages -e "$SCRIPT_DIR" 2>/dev/null; then
+  elif "$PY" -m pip install --break-system-packages -e "$SCRIPT_DIR" 2> /dev/null; then
     success "WAL-E CLI installed successfully (system packages mode)."
   else
-    error "Failed to install WAL-E. Try: pip install -e $SCRIPT_DIR"
+    error "Failed to install WAL-E. Try manually: $PY -m pip install -e \"$SCRIPT_DIR\""
     return 1
   fi
 
-  # Verify
+  # Verify the entry point landed on PATH; if not, point to the exact fallbacks.
   if command -v wal-e &> /dev/null; then
-    success "wal-e command is available: $(which wal-e)"
+    success "wal-e command is available: $(command -v wal-e)"
   else
-    warn "wal-e may not be on your PATH yet. Try: python -m wal_e"
+    warn "wal-e isn't on your PATH yet. Run it directly with: $PY -m wal_e"
+    warn "Or add your user scripts directory to PATH: $("$PY" -m site --user-base 2>/dev/null)/bin"
   fi
 }
 
@@ -281,8 +313,16 @@ install_mcp() {
 uninstall() {
   info "Uninstalling WAL-E..."
 
-  # Remove pip package
-  if pip3 uninstall -y wal-e 2>/dev/null || pip uninstall -y wal-e 2>/dev/null; then
+  # Remove pip package via the same interpreter that satisfies >=3.10, falling
+  # back to bare pip3/pip only if no suitable interpreter is found.
+  local PY
+  if PY="$(find_python)"; then
+    if "$PY" -m pip uninstall -y wal-e 2> /dev/null; then
+      success "WAL-E pip package removed."
+    else
+      warn "WAL-E pip package not found or already removed."
+    fi
+  elif pip3 uninstall -y wal-e 2> /dev/null || pip uninstall -y wal-e 2> /dev/null; then
     success "WAL-E pip package removed."
   else
     warn "WAL-E pip package not found or already removed."
