@@ -92,6 +92,8 @@ Your Databricks SA will guide you through these steps on a call or screen share.
 - [Databricks CLI](https://docs.databricks.com/dev-tools/cli/install.html) v0.200+ configured with workspace access
 - Workspace admin access (recommended for full assessment)
 
+> **Use `python3.10 -m pip`, not a bare `pip`.** On many machines `pip`/`pip3` are bound to an older Python and will fail with `requires a different Python: 3.x not in '>=3.10'` (or `pip: command not found`). Substitute your exact version (e.g. `python3.11`, `python3.12`). The `python -m pip` form guarantees pip installs into the same interpreter you named. The `./install.sh` script handles this for you automatically.
+
 ### Step 1: Install WAL-E
 
 ```bash
@@ -99,11 +101,11 @@ Your Databricks SA will guide you through these steps on a call or screen share.
 git clone https://github.com/priyal-c/wal-e.git
 cd wal-e
 
-# Install
-pip install -e .
-
-# Or use the quick installer
+# Recommended: the installer auto-detects a Python 3.10+ interpreter
 ./install.sh --cli
+
+# Or install manually, invoking pip through your Python 3.10+ interpreter
+python3.10 -m pip install -e .
 ```
 
 ### Step 2: Configure Workspace Access
@@ -212,7 +214,7 @@ As the SA, you don't need access to the customer's workspace. Your role is to gu
    - Schedule a 30-minute screen share session
 
 2. On the Call (Customer shares their screen)
-   - Guide them through 'git clone https://github.com/priyal-c/wal-e.git' and pip install
+   - Guide them through 'git clone https://github.com/priyal-c/wal-e.git' and './install.sh --cli' (or 'python3.10 -m pip install -e .')
    - Walk them through 'databricks configure' with their own workspace URL
    - Have them authenticate via OAuth ('databricks auth login') or create a short-lived PAT token (1 day lifetime)
    - Run 'wal-e validate' to confirm access
