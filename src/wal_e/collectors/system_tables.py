@@ -15,6 +15,14 @@ from typing import Any
 
 from wal_e.collectors.base import AuditEntry, BaseCollector
 
+# The SQL Statement Execution API caps the synchronous wait at 50s; values
+# outside 5-50s (or 0s for async) are rejected. Statements that exceed the
+# wait fall back to asynchronous execution and are polled via GET.
+_WAIT_TIMEOUT = "50s"
+_POLL_INTERVAL_SECONDS = 5.0
+_MAX_POLL_SECONDS = 180.0
+_TERMINAL_STATES = ("SUCCEEDED", "FAILED", "CANCELED", "CLOSED")
+
 
 class SystemTablesCollector(BaseCollector):
     """Collects data from Databricks system tables via SQL statements."""
@@ -23,16 +31,60 @@ class SystemTablesCollector(BaseCollector):
         super().__init__(profile_name)
         self.warehouse_id = warehouse_id
 
-    def _run_sql(self, sql: str, label: str = "") -> tuple[list[dict[str, Any]] | None, bool]:
-        """Execute SQL via Databricks statement execution API.
+    @staticmethod
+    def _parse_rows(resp: dict[str, Any]) -> list[dict[str, Any]]:
+        """Map an INLINE JSON_ARRAY statement response into row dicts."""
+        manifest = resp.get("manifest", {}) or {}
+        columns = [
+            c.get("name", f"col{i}")
+            for i, c in enumerate(manifest.get("schema", {}).get("columns", []) or [])
+        ]
+        data_array = (resp.get("result", {}) or {}).get("data_array", []) or []
+        rows: list[dict[str, Any]] = []
+        for row_arr in data_array:
+            rows.append({
+                col_name: (row_arr[i] if i < len(row_arr) else None)
+                for i, col_name in enumerate(columns)
+            })
+        return rows
 
-        Uses `databricks api post /api/2.0/sql/statements` with the configured
-        warehouse. Returns parsed rows or None on failure.
+    def _poll_statement(self, statement_id: str) -> dict[str, Any] | None:
+        """Poll a long-running statement until it reaches a terminal state."""
+        deadline = time.perf_counter() + _MAX_POLL_SECONDS
+        while time.perf_counter() < deadline:
+            time.sleep(_POLL_INTERVAL_SECONDS)
+            cmd = [
+                "databricks", "api", "get",
+                f"/api/2.0/sql/statements/{statement_id}",
+                "--profile", self.profile_name,
+            ]
+            try:
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            except (subprocess.TimeoutExpired, OSError):
+                continue
+            if result.returncode != 0 or not result.stdout:
+                continue
+            try:
+                resp = json.loads(result.stdout)
+            except json.JSONDecodeError:
+                continue
+            if resp.get("status", {}).get("state", "") in _TERMINAL_STATES:
+                return resp
+        return None
+
+    def _run_sql(self, sql: str, label: str = "") -> tuple[list[dict[str, Any]] | None, bool]:
+        """Execute SQL via the Databricks statement execution API.
+
+        Submits via `databricks api post /api/2.0/sql/statements` with the
+        configured warehouse, waiting up to the API-allowed maximum. Statements
+        that need longer than the wait window continue asynchronously and are
+        polled to completion. Returns parsed rows or None on failure.
         """
         payload = json.dumps({
             "warehouse_id": self.warehouse_id,
             "statement": sql,
-            "wait_timeout": "60s",
+            "wait_timeout": _WAIT_TIMEOUT,
+            "on_wait_timeout": "CONTINUE",
             "disposition": "INLINE",
             "format": "JSON_ARRAY",
         })
@@ -45,50 +97,46 @@ class SystemTablesCollector(BaseCollector):
         start = time.perf_counter()
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-            duration = time.perf_counter() - start
             output = result.stdout or ""
             stderr = result.stderr.strip() if result.stderr else ""
-            success = result.returncode == 0
 
-            self.audit_entries.append(AuditEntry(
-                command=["SQL"] + ([label] if label else []) + [sql[:120]],
-                raw_output=output[:2000] if output else stderr,
-                duration_seconds=duration,
-                success=success,
-                error=None if success else (stderr or f"Exit code {result.returncode}"),
-            ))
-
-            if not success or not output:
+            if result.returncode != 0 or not output:
+                self._audit(label, sql, start, False, output or stderr,
+                            stderr or f"Exit code {result.returncode}")
                 return None, False
 
             resp = json.loads(output)
-            status = resp.get("status", {}).get("state", "")
-            if status not in ("SUCCEEDED",):
-                err = resp.get("status", {}).get("error", {}).get("message", status)
+            state = resp.get("status", {}).get("state", "")
+
+            if state in ("PENDING", "RUNNING"):
+                statement_id = resp.get("statement_id", "")
+                polled = self._poll_statement(statement_id) if statement_id else None
+                if polled is not None:
+                    resp = polled
+                    state = resp.get("status", {}).get("state", "")
+
+            if state != "SUCCEEDED":
+                err = resp.get("status", {}).get("error", {}).get("message", state or "unknown")
+                self._audit(label, sql, start, False, output[:2000], err)
                 return None, False
 
-            manifest = resp.get("manifest", {})
-            columns = [c.get("name", f"col{i}") for i, c in enumerate(manifest.get("schema", {}).get("columns", []))]
-            chunks = resp.get("result", {}).get("data_array", [])
-
-            rows: list[dict[str, Any]] = []
-            for row_arr in chunks:
-                row = {}
-                for i, col_name in enumerate(columns):
-                    row[col_name] = row_arr[i] if i < len(row_arr) else None
-                rows.append(row)
+            rows = self._parse_rows(resp)
+            self._audit(label, sql, start, True, output[:2000], None)
             return rows, True
 
         except (subprocess.TimeoutExpired, json.JSONDecodeError, Exception) as e:
-            duration = time.perf_counter() - start
-            self.audit_entries.append(AuditEntry(
-                command=["SQL"] + ([label] if label else []) + [sql[:120]],
-                raw_output="",
-                duration_seconds=duration,
-                success=False,
-                error=str(e),
-            ))
+            self._audit(label, sql, start, False, "", str(e))
             return None, False
+
+    def _audit(self, label: str, sql: str, start: float, success: bool,
+               raw_output: str, error: str | None) -> None:
+        self.audit_entries.append(AuditEntry(
+            command=["SQL"] + ([label] if label else []) + [sql[:120]],
+            raw_output=raw_output,
+            duration_seconds=time.perf_counter() - start,
+            success=success,
+            error=error,
+        ))
 
     def collect(self) -> dict[str, Any]:
         """Collect all system table data. Each query is independent — failures are isolated."""
@@ -180,19 +228,33 @@ class SystemTablesCollector(BaseCollector):
     def _collect_compute_history(self) -> dict[str, Any]:
         result: dict[str, Any] = {"available": False}
 
-        # Cluster uptime and idle time (last 30 days)
+        # Cluster uptime derived from per-minute node telemetry. system.compute.clusters
+        # is a config (SCD2) dimension with no runtime state, so running hours come from
+        # node_timeline driver rows (one per running minute per cluster).
         rows, ok = self._run_sql("""
-            SELECT cluster_id,
-                   cluster_name,
-                   SUM(CASE WHEN state = 'RUNNING' THEN duration_ms ELSE 0 END) / 3600000.0 AS running_hours,
-                   SUM(duration_ms) / 3600000.0 AS total_hours,
-                   COUNT(DISTINCT DATE(change_time)) AS active_days
-            FROM system.compute.clusters
-            WHERE change_time >= current_date() - INTERVAL 30 DAYS
-            GROUP BY cluster_id, cluster_name
-            HAVING running_hours > 0
-            ORDER BY running_hours DESC
-            LIMIT 20
+            WITH uptime AS (
+                SELECT cluster_id,
+                       COUNT(*) / 60.0 AS running_hours,
+                       AVG(cpu_user_percent + cpu_system_percent) AS avg_cpu_pct
+                FROM system.compute.node_timeline
+                WHERE start_time >= current_date() - INTERVAL 30 DAYS
+                  AND driver = true
+                GROUP BY cluster_id
+                HAVING running_hours > 0
+            ),
+            names AS (
+                SELECT cluster_id, ANY_VALUE(cluster_name) AS cluster_name
+                FROM system.compute.clusters
+                GROUP BY cluster_id
+            )
+            SELECT u.cluster_id,
+                   n.cluster_name,
+                   u.running_hours,
+                   u.avg_cpu_pct
+            FROM uptime u
+            LEFT JOIN names n ON u.cluster_id = n.cluster_id
+            ORDER BY u.running_hours DESC
+            LIMIT 50
         """, "compute-cluster-uptime-30d")
         if ok and rows:
             result["available"] = True
@@ -200,20 +262,31 @@ class SystemTablesCollector(BaseCollector):
             total_running = sum(float(r.get("running_hours") or 0) for r in rows)
             result["total_running_hours_30d"] = round(total_running, 1)
 
-        # Clusters that were running but had no jobs (potential idle waste)
+        # Idle waste: clusters that ran for meaningful time but stayed near-idle
+        # (average CPU under 10%), signalling over-provisioning or missing auto-stop.
         rows, ok = self._run_sql("""
-            SELECT c.cluster_id,
-                   c.cluster_name,
-                   SUM(CASE WHEN c.state = 'RUNNING' THEN c.duration_ms ELSE 0 END) / 3600000.0 AS running_hours
-            FROM system.compute.clusters c
-            LEFT JOIN system.lakeflow.job_run_timeline j
-              ON c.cluster_id = j.cluster_id
-              AND j.period_start_time >= current_date() - INTERVAL 30 DAYS
-            WHERE c.change_time >= current_date() - INTERVAL 30 DAYS
-              AND j.cluster_id IS NULL
-            GROUP BY c.cluster_id, c.cluster_name
-            HAVING running_hours > 1
-            ORDER BY running_hours DESC
+            WITH uptime AS (
+                SELECT cluster_id,
+                       COUNT(*) / 60.0 AS running_hours,
+                       AVG(cpu_user_percent + cpu_system_percent) AS avg_cpu_pct
+                FROM system.compute.node_timeline
+                WHERE start_time >= current_date() - INTERVAL 30 DAYS
+                  AND driver = true
+                GROUP BY cluster_id
+                HAVING running_hours > 1 AND avg_cpu_pct < 10
+            ),
+            names AS (
+                SELECT cluster_id, ANY_VALUE(cluster_name) AS cluster_name
+                FROM system.compute.clusters
+                GROUP BY cluster_id
+            )
+            SELECT u.cluster_id,
+                   n.cluster_name,
+                   u.running_hours,
+                   u.avg_cpu_pct
+            FROM uptime u
+            LEFT JOIN names n ON u.cluster_id = n.cluster_id
+            ORDER BY u.running_hours DESC
             LIMIT 10
         """, "compute-idle-clusters-30d")
         if ok and rows:
@@ -228,15 +301,17 @@ class SystemTablesCollector(BaseCollector):
     def _collect_query_history(self) -> dict[str, Any]:
         result: dict[str, Any] = {"available": False}
 
-        # Query stats last 30 days
+        # Query stats last 30 days. system.query.history uses execution_status
+        # (FINISHED/FAILED/CANCELED) and total_duration_ms; the warehouse id lives
+        # in the compute struct.
         rows, ok = self._run_sql("""
             SELECT COUNT(*) AS total_queries,
-                   SUM(CASE WHEN status = 'FINISHED' THEN 1 ELSE 0 END) AS succeeded,
-                   SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) AS failed,
-                   SUM(CASE WHEN status = 'CANCELED' THEN 1 ELSE 0 END) AS canceled,
-                   AVG(duration) AS avg_duration_ms,
-                   PERCENTILE(duration, 0.95) AS p95_duration_ms,
-                   PERCENTILE(duration, 0.99) AS p99_duration_ms
+                   SUM(CASE WHEN execution_status = 'FINISHED' THEN 1 ELSE 0 END) AS succeeded,
+                   SUM(CASE WHEN execution_status = 'FAILED' THEN 1 ELSE 0 END) AS failed,
+                   SUM(CASE WHEN execution_status = 'CANCELED' THEN 1 ELSE 0 END) AS canceled,
+                   AVG(total_duration_ms) AS avg_duration_ms,
+                   PERCENTILE(total_duration_ms, 0.95) AS p95_duration_ms,
+                   PERCENTILE(total_duration_ms, 0.99) AS p99_duration_ms
             FROM system.query.history
             WHERE start_time >= current_date() - INTERVAL 30 DAYS
         """, "query-stats-30d")
@@ -257,22 +332,22 @@ class SystemTablesCollector(BaseCollector):
             SELECT COUNT(*) AS slow_query_count
             FROM system.query.history
             WHERE start_time >= current_date() - INTERVAL 30 DAYS
-              AND status = 'FINISHED'
-              AND duration > 300000
+              AND execution_status = 'FINISHED'
+              AND total_duration_ms > 300000
         """, "query-slow-count-30d")
         if ok and rows:
             result["slow_queries_30d"] = int(rows[0].get("slow_query_count") or 0)
 
         # Warehouse utilization
         rows, ok = self._run_sql("""
-            SELECT warehouse_id,
+            SELECT compute.warehouse_id AS warehouse_id,
                    COUNT(*) AS query_count,
-                   AVG(duration) AS avg_duration_ms,
-                   SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) AS failures
+                   AVG(total_duration_ms) AS avg_duration_ms,
+                   SUM(CASE WHEN execution_status = 'FAILED' THEN 1 ELSE 0 END) AS failures
             FROM system.query.history
             WHERE start_time >= current_date() - INTERVAL 30 DAYS
-              AND warehouse_id IS NOT NULL
-            GROUP BY warehouse_id
+              AND compute.warehouse_id IS NOT NULL
+            GROUP BY compute.warehouse_id
             ORDER BY query_count DESC
             LIMIT 10
         """, "query-warehouse-utilization-30d")
