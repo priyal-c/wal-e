@@ -591,7 +591,7 @@ WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
 
   Reports are saved in your output directory:
   - WAL_Assessment_Readout.md     (detailed report)
-  - WAL_Assessment_Scores.csv     (129 scored best practices)
+  - WAL_Assessment_Scores.csv     (134 scored best practices)
   - WAL_Assessment_Presentation.pptx (executive deck)
   - WAL_Assessment_Audit_Report.md   (full evidence trail)
 
@@ -667,7 +667,7 @@ WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
 {C.BOLD}OPTIONAL: DEEP SCAN (system tables for operational analysis){C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
-  The standard scan uses the 21 API calls above (129 best practices).
+  The standard scan uses the 21 API calls above (134 best practices).
   For a {C.GREEN}deep scan{C.RESET} (+11 best practices), WAL-E also queries system tables
   to assess actual cost trends, cluster idle time, query failure rates,
   job success rates, and security audit events.

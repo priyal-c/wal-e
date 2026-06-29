@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from wal_e.collectors import (
+    AICollector,
     AuthCollector,
     ComputeCollector,
     GovernanceCollector,
@@ -42,6 +43,7 @@ class AssessmentEngine:
             ComputeCollector(config.profile_name),
             SecurityCollector(config.profile_name),
             OperationsCollector(config.profile_name),
+            AICollector(config.profile_name),
             WorkspaceCollector(config.profile_name),
         ]
         if config.deep_scan and config.warehouse_id:
