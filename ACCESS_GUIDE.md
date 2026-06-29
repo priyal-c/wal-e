@@ -62,6 +62,7 @@ WAL-E is designed so the **customer runs everything on their own system**. The S
 | **Compute** | Cluster names & states, SQL warehouse configs, cluster policies, instance pools | Running cluster count, warehouse sizes |
 | **Security** | Workspace settings (DBFS browser, export, token lifetime), IP access lists | Config flags (true/false) |
 | **Operations** | Job names, pipeline states, serving endpoints, git repos, init scripts, secret scope names | Job count, pipeline failure states |
+| **AI / GenAI** | Model serving endpoint config (AI Gateway, guardrails, inference tables, provisioned throughput), Vector Search endpoints & indexes, UC-registered vs workspace-registry models, Genie space count | LLM endpoint count, guardrail coverage |
 | **Workspace** | Root-level directory listing (names & types only) | Folder names, notebook counts |
 
 ### What is NOT Collected
@@ -161,8 +162,8 @@ wal-e assess --profile wal-assessment --output ./my-assessment --format all
 
 WAL-E will:
 1. Auto-detect your cloud provider (AWS / Azure / GCP)
-2. Run 21 read-only API calls to collect workspace metadata
-3. Score 129 best practices across 7 pillars
+2. Run 27 read-only API call types to collect workspace metadata (plus per-endpoint detail calls for serving and Vector Search)
+3. Score 134 best practices across 7 pillars (145 with `--deep`)
 4. Generate reports in the output directory
 
 ### Step 6: Review Results with Your SA
@@ -172,7 +173,7 @@ The output directory contains:
 | File | Description |
 |------|-------------|
 | `WAL_Assessment_Readout.md` | Detailed report (all 7 pillars) |
-| `WAL_Assessment_Scores.csv` | 129 best practices with scores |
+| `WAL_Assessment_Scores.csv` | 145 best practices with scores |
 | `WAL_Assessment_Presentation.pptx` | Executive deck |
 | `WAL_Assessment_Presentation.html` | Browser presentation |
 | `WAL_Assessment_Audit_Report.md` | Evidence trail of all API calls |
@@ -198,7 +199,7 @@ rm -rf ./my-assessment
 
 ## 5. Required Permissions by Collector
 
-WAL-E runs 6 collectors. Here is exactly what each one needs:
+WAL-E runs 7 collectors. Here is exactly what each one needs:
 
 ### Collector 1: Authentication & Identity
 
@@ -245,7 +246,18 @@ WAL-E runs 6 collectors. Here is exactly what each one needs:
 | `GET /api/2.0/groups/list` | Any workspace user | No |
 | `GET /api/2.0/secrets/list-scopes` | Any workspace user | No |
 
-### Collector 6: Workspace Structure
+### Collector 6: AI / GenAI Assets
+
+| API Call | Permission | Admin Required? |
+|----------|-----------|-----------------|
+| `GET /api/2.0/serving-endpoints/{name}` | CAN_QUERY or admin | Admin for ALL endpoints |
+| `GET /api/2.0/vector-search/endpoints` | CAN_USE or admin | Admin for ALL endpoints |
+| `GET /api/2.0/vector-search/indexes?endpoint_name=...` | CAN_USE or admin | Admin for ALL indexes |
+| `GET /api/2.1/unity-catalog/models` | USE CATALOG / metastore admin | Metastore admin for ALL models |
+| `GET /api/2.0/preview/ml/registered-models/search` | Any workspace user | No |
+| `GET /api/2.0/genie/spaces` | CAN_VIEW or admin | No (skipped if unavailable) |
+
+### Collector 7: Workspace Structure
 
 | API Call | Permission | Admin Required? |
 |----------|-----------|-----------------|
@@ -255,7 +267,7 @@ WAL-E runs 6 collectors. Here is exactly what each one needs:
 
 ## 6. Complete API Endpoint Reference
 
-**All calls are GET (read-only). Total: 21 calls. Zero write calls.**
+**All calls are GET (read-only). 27 endpoint types; the AI collector also issues per-endpoint detail calls for serving and Vector Search (capped at 50 each). Zero write calls.**
 
 ```
 # Authentication (2 calls)
@@ -288,6 +300,14 @@ GET /api/2.0/global-init-scripts
 GET /api/2.0/groups/list
 GET /api/2.0/secrets/list-scopes
 
+# AI / GenAI Assets (6 endpoint types + per-endpoint detail)
+GET /api/2.0/serving-endpoints/{name}                     # detail per endpoint (capped 50)
+GET /api/2.0/vector-search/endpoints
+GET /api/2.0/vector-search/indexes?endpoint_name=...      # per Vector Search endpoint
+GET /api/2.1/unity-catalog/models
+GET /api/2.0/preview/ml/registered-models/search
+GET /api/2.0/genie/spaces
+
 # Workspace Structure (1 call)
 GET /api/2.0/workspace/list?path=%2F
 ```
@@ -304,9 +324,10 @@ GRANT SELECT ON SCHEMA system.billing TO `your-admin-user@company.com`;
 GRANT SELECT ON SCHEMA system.compute TO `your-admin-user@company.com`;
 GRANT SELECT ON SCHEMA system.query TO `your-admin-user@company.com`;
 GRANT SELECT ON SCHEMA system.access TO `your-admin-user@company.com`;
+GRANT SELECT ON SCHEMA system.lakeflow TO `your-admin-user@company.com`;
 ```
 
-**Note:** System table access is **optional**. WAL-E produces a complete assessment using only the 21 REST API calls above.
+**Note:** System table access is **optional**. WAL-E produces a complete assessment using only the REST API calls above.
 
 ---
 
@@ -406,7 +427,7 @@ On the call, I'll guide you through:
   - Running the assessment (10 min)
   - Reviewing the results together
 
-The tool makes 21 read-only API calls and generates a report.
+The tool makes read-only API calls (GET only) and generates a report.
 No data leaves your machine. You revoke the token right after.
 
 Total time: ~30 minutes
@@ -427,4 +448,4 @@ Total time: ~30 minutes
 
 ---
 
-*Document version: 2.0 | WAL-E v0.1.0 | Customer self-service model | Last updated: February 2026*
+*Document version: 2.1 | WAL-E v0.1.0 | Customer self-service model | Last updated: June 2026*

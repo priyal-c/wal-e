@@ -1,29 +1,29 @@
 ---
 name: wal-assessment
-description: Run WAL-E (Well-Architected Lakehouse Evaluator) to assess Databricks workspaces against the Well-Architected Lakehouse Framework. Use when the user wants to evaluate a Databricks workspace, generate architecture assessment reports, score 99 best practices across 7 pillars, or present findings to customers. Supports Cursor, Claude Code, Windsurf, and other AI assistants.
+description: Run WAL-E (Well-Architected Lakehouse Evaluator) to assess Databricks workspaces against the Well-Architected Lakehouse Framework. Use when the user wants to evaluate a Databricks workspace, generate architecture assessment reports, score 145 best practices across 7 pillars, or present findings to customers. Supports Cursor, Claude Code, Windsurf, and other AI assistants.
 ---
 
 # WAL-E Assessment Skill
 
 ## Overview
 
-WAL-E is an agentic assessment tool that evaluates Databricks workspaces against the [Well-Architected Lakehouse Framework](https://docs.databricks.com/lakehouse-architecture/well-architected). It queries 23+ Databricks APIs, scores 99 best practices across 7 pillars, and generates reports ready for customer presentations.
+WAL-E is an agentic assessment tool that evaluates Databricks workspaces against the [Well-Architected Lakehouse Framework](https://docs.databricks.com/lakehouse-architecture/well-architected). It queries 27+ Databricks APIs (including Mosaic AI / GenAI assets), scores 145 best practices across 7 pillars, and generates reports ready for customer presentations.
 
 ---
 
-## Well-Architected Lakehouse Framework (7 Pillars, 99 Best Practices)
+## Well-Architected Lakehouse Framework (7 Pillars, 145 Best Practices)
 
 | # | Pillar | Best Practices | Focus |
 |---|--------|:--------------:|-------|
-| 1 | Data & AI Governance | 12 | Unity Catalog, metadata, lineage, data quality, audit |
+| 1 | Data & AI Governance | 17 | Unity Catalog, metadata, lineage, data quality, UC models, inference tables |
 | 2 | Interoperability & Usability | 15 | Open formats, IaC, serverless, self-service, Delta Sharing |
-| 3 | Operational Excellence | 20 | CI/CD, MLOps, monitoring, environment isolation, DLT |
-| 4 | Security | 7 | IAM, encryption, network, compliance |
-| 5 | Reliability | 18 | ACID, auto-scaling, DR, backups, time travel |
-| 6 | Performance | 21 | Serverless, data layout, caching, Photon, monitoring |
-| 7 | Cost | 18 | Right-sizing, auto-scaling, tagging, chargeback |
+| 3 | Operational Excellence | 24 | CI/CD, MLOps, monitoring, environment isolation, DLT |
+| 4 | Security | 16 | IAM, encryption, network, compliance, LLM guardrails, external-model secrets |
+| 5 | Reliability | 22 | ACID, auto-scaling, DR, backups, provisioned throughput for LLM serving |
+| 6 | Performance | 28 | Serverless, data layout, caching, Photon, monitoring |
+| 7 | Cost | 23 | Right-sizing, auto-scaling, tagging, chargeback |
 
-**Scoring scale:** 0 = Not Implemented, 1 = Partial, 2 = Full
+**Total:** 134 standard + 11 deep scan (system tables) = 145. **Scoring scale:** 0 = Not Implemented, 1 = Partial, 2 = Full
 
 ---
 
@@ -55,10 +55,11 @@ Options:
 - `--profile <name>` – Databricks CLI profile
 - `--output <dir>` – Output directory (default: `./assessment-results`)
 - `--format md,csv,html,pptx,audit` – Report formats
+- `--deep --warehouse-id <ID>` – Add 11 system-table best practices (cost trends, idle clusters, query/job failure rates, audit events). Requires a running SQL warehouse and `SELECT` on `system.*` schemas (`billing`, `compute`, `query`, `access`, `lakeflow`).
 
 ### 4. Interpret Results
 
-- **Overall score:** Average of 99 best practices (0–2 scale)
+- **Overall score:** Average of the scored best practices (0–2 scale)
 - **Maturity levels:** Beginning (<0.5), Developing (0.5–1.25), Established (1.25–1.75), Optimized (≥1.75)
 - **Pillar scores:** Per-pillar averages; identify weak areas
 - **Finding notes:** Each best practice includes remediation guidance
@@ -111,7 +112,7 @@ If that succeeds, I'll run the full assessment:
 ```bash
 python -m wal_e assess --output ./assessment-results --format md csv audit
 ```
-You'll get pillar scores, 99 best-practice scores, and an audit trail.
+You'll get pillar scores, 145 best-practice scores, and an audit trail.
 
 ---
 
