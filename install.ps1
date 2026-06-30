@@ -14,8 +14,13 @@
 
 [CmdletBinding()]
 param(
-    [Parameter(Position = 0)]
-    [string]$Command = ""
+    [switch]$cursor,
+    [switch]$claude,
+    [switch]$mcp,
+    [switch]$cli,
+    [switch]$all,
+    [switch]$uninstall,
+    [Alias("h")][switch]$help
 )
 
 $ErrorActionPreference = "Stop"
@@ -255,27 +260,28 @@ function Uninstall-Wale {
 # ============================================================================
 # Main
 # ============================================================================
-if ([string]::IsNullOrWhiteSpace($Command)) {
+$actionCount = @($cursor, $claude, $mcp, $cli, $all, $uninstall).Where({ $_ }).Count
+
+if ($help -or $actionCount -eq 0) {
     Show-Usage
     exit 0
+}
+if ($actionCount -gt 1) {
+    Write-Err "Choose a single action (e.g. --cli OR --all), not several at once."
+    Show-Usage
+    exit 1
 }
 
 Write-Banner
 
-switch ($Command) {
-    "--cursor"    { Install-Cursor }
-    "--claude"    { Install-Claude }
-    "--mcp"       { Install-Mcp }
-    "--cli"       { Install-Cli }
-    "--all"       { Install-Cli; Write-Host ""; Install-Cursor; Write-Host ""; Install-Claude; Write-Host ""; Install-Mcp }
-    "--uninstall" { Uninstall-Wale }
-    { $_ -in @("-h", "--help") } { Show-Usage }
-    default {
-        Write-Err "Unknown option: $Command"
-        Show-Usage
-        exit 1
-    }
+if ($all) {
+    Install-Cli; Write-Host ""; Install-Cursor; Write-Host ""; Install-Claude; Write-Host ""; Install-Mcp
 }
+elseif ($cursor)    { Install-Cursor }
+elseif ($claude)    { Install-Claude }
+elseif ($mcp)       { Install-Mcp }
+elseif ($cli)       { Install-Cli }
+elseif ($uninstall) { Uninstall-Wale }
 
 Write-Host ""
 Write-Host "Done! WAL-E v$WaleVersion" -ForegroundColor Green
