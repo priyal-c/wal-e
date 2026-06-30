@@ -112,6 +112,8 @@ class WalEConfig:
                 ["databricks", "auth", "describe", "--profile", self.profile_name],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=15,
             )
             if auth_result.returncode != 0:
@@ -135,6 +137,8 @@ class WalEConfig:
                 ["databricks", "api", "get", "/api/2.1/clusters/list", "--profile", self.profile_name],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=30,
             )
             if result.returncode == 0:

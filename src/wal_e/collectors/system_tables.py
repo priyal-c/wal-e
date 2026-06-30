@@ -59,7 +59,10 @@ class SystemTablesCollector(BaseCollector):
                 "--profile", self.profile_name,
             ]
             try:
-                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                result = subprocess.run(
+                    cmd, capture_output=True, text=True,
+                    encoding="utf-8", errors="replace", timeout=60,
+                )
             except (subprocess.TimeoutExpired, OSError):
                 continue
             if result.returncode != 0 or not result.stdout:
@@ -96,7 +99,10 @@ class SystemTablesCollector(BaseCollector):
         ]
         start = time.perf_counter()
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            result = subprocess.run(
+                cmd, capture_output=True, text=True,
+                encoding="utf-8", errors="replace", timeout=120,
+            )
             output = result.stdout or ""
             stderr = result.stderr.strip() if result.stderr else ""
 
