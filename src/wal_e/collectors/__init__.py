@@ -1,5 +1,6 @@
 """Data collectors for workspace assessment."""
 
+from wal_e.collectors.ai import AICollector
 from wal_e.collectors.auth import AuthCollector
 from wal_e.collectors.base import BaseCollector
 from wal_e.collectors.compute import ComputeCollector
@@ -10,6 +11,7 @@ from wal_e.collectors.system_tables import SystemTablesCollector
 from wal_e.collectors.workspace import WorkspaceCollector
 
 __all__ = [
+    "AICollector",
     "AuthCollector",
     "BaseCollector",
     "ComputeCollector",

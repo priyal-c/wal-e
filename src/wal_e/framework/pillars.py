@@ -1,9 +1,11 @@
 """
 WAL-E Framework: Well-Architected Lakehouse pillars and best practices.
 
-Defines all 7 pillars with 140 best practices from the Databricks
+Defines all 7 pillars with 145 best practices from the Databricks
 Well-Architected Lakehouse Framework plus Databricks published cheat sheets
 and best-practice articles (docs.databricks.com/aws/en/getting-started/best-practices).
+Includes GenAI / Mosaic AI best practices (model serving, AI Gateway, guardrails,
+Vector Search, Models in Unity Catalog).
 """
 
 from dataclasses import dataclass, field
@@ -154,6 +156,21 @@ def _get_all_pillars() -> list[Pillar]:
                 pillar="Data & AI Governance",
                 principle="Track lineage and discovery",
                 domains=["Unity Catalog", "Data Discovery", "Privileges"],
+            ),
+            # --- NEW: GenAI / Mosaic AI governance ---
+            BestPractice(
+                id="gov-016",
+                name="Models registered in Unity Catalog",
+                pillar="Data & AI Governance",
+                principle="Govern AI assets",
+                domains=["Unity Catalog", "Models in UC", "MLOps", "AI"],
+            ),
+            BestPractice(
+                id="gov-018",
+                name="Inference tables / payload logging for AI endpoints",
+                pillar="Data & AI Governance",
+                principle="Establish governance processes",
+                domains=["AI Gateway", "Inference Tables", "Audit", "GenAI"],
             ),
         ],
     )
@@ -555,6 +572,21 @@ def _get_all_pillars() -> list[Pillar]:
                 principle="Data protection",
                 domains=["DBFS", "Storage", "Data Protection"],
             ),
+            # --- NEW: GenAI / Mosaic AI security ---
+            BestPractice(
+                id="sec-015",
+                name="Guardrails on LLM endpoints",
+                pillar="Security",
+                principle="Data protection",
+                domains=["AI Gateway", "Guardrails", "PII", "GenAI"],
+            ),
+            BestPractice(
+                id="sec-016",
+                name="No plaintext credentials on external-model endpoints",
+                pillar="Security",
+                principle="Data protection",
+                domains=["External Models", "Secrets", "GenAI"],
+            ),
             # --- DEEP SCAN: system table-backed best practices ---
             BestPractice(
                 id="sec-013",
@@ -716,6 +748,14 @@ def _get_all_pillars() -> list[Pillar]:
                 pillar="Reliability",
                 principle="Managed services",
                 domains=["Service Principals", "Jobs", "Reliability"],
+            ),
+            # --- NEW: GenAI / Mosaic AI reliability ---
+            BestPractice(
+                id="rel-022",
+                name="Provisioned throughput for production LLM serving",
+                pillar="Reliability",
+                principle="Managed services",
+                domains=["Model Serving", "Provisioned Throughput", "GenAI"],
             ),
             # --- DEEP SCAN: system table-backed best practices ---
             BestPractice(

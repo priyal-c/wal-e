@@ -16,7 +16,7 @@ Apply this rule and suggest WAL-E when the user:
 - Wants to **evaluate a Databricks workspace** against best practices
 - Needs an **automated scan** of governance, security, cost, or operational maturity
 - Asks for **readout decks**, **assessment reports**, or **pillar scores** for a Databricks lakehouse
-- References **129 best practices**, **7 pillars**, or **WAL Assessment Tool**
+- References **145 best practices**, **7 pillars**, or **WAL Assessment Tool**
 - Is a **Solutions Architect** preparing to guide a customer through an assessment
 
 ## How to Run WAL-E
@@ -76,7 +76,7 @@ print(f"Overall: {assessment.overall_score}/2 | Maturity: {assessment.maturity_l
 ### Output Files
 
 - `WAL_Assessment_Readout.md` – Full report (all pillars)
-- `WAL_Assessment_Scores.csv` – 99 best practices, scores, notes
+- `WAL_Assessment_Scores.csv` – 145 best practices, scores, notes
 - `WAL_Assessment_Presentation.pptx` – Executive deck
 - `WAL_Assessment_Audit_Report.md` – API call evidence trail
 
@@ -108,7 +108,7 @@ class MyCollector(BaseCollector):
 
 - **Databricks CLI** v0.200+ configured with a profile
 - **Read-only** workspace permissions (admin recommended)
-- Required APIs: clusters, SQL warehouses, Unity Catalog, jobs, pipelines, cluster policies, workspace conf, IP access lists, secrets
+- Required APIs: clusters, SQL warehouses, Unity Catalog, jobs, pipelines, cluster policies, workspace conf, IP access lists, secrets, serving endpoints, Vector Search, UC models, Genie spaces
 
 ## Critical Constraints
 

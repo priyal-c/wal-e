@@ -2,7 +2,7 @@
 
 ## Overview
 
-WAL-E (Well-Architected Lakehouse Evaluator) is an automated assessment tool for Databricks workspaces. It evaluates workspaces against the [Well-Architected Lakehouse Framework](https://docs.databricks.com/lakehouse-architecture/well-architected) by querying Databricks APIs, scoring **140 best practices** (129 standard + 11 deep scan) across **7 pillars**, and generating assessment reports.
+WAL-E (Well-Architected Lakehouse Evaluator) is an automated assessment tool for Databricks workspaces. It evaluates workspaces against the [Well-Architected Lakehouse Framework](https://docs.databricks.com/lakehouse-architecture/well-architected) by querying Databricks APIs, scoring **145 best practices** (134 standard + 11 deep scan) across **7 pillars**, and generating assessment reports.
 
 **Operating Model:** WAL-E is designed to be **run by the customer on their own machine**, with a Databricks SA guiding them through every step. No tokens, credentials, or data ever leave the customer's environment. The SA joins via screen share and guides the process.
 
@@ -11,10 +11,10 @@ WAL-E auto-detects the cloud provider (AWS / Azure / GCP) from the workspace URL
 ## How to Run
 
 ```bash
-# Standard assessment (21 API calls, 129 best practices)
+# Standard assessment (27 API call types, 134 best practices)
 wal-e assess --profile wal-assessment --output ./my-assessment --format all
 
-# Deep scan (adds system tables: billing, compute, query, audit, jobs)
+# Deep scan (adds system tables: billing, compute, query, audit, lakeflow jobs)
 wal-e assess --profile wal-assessment --deep --warehouse-id <ID> --format all
 
 # Validate workspace access before running
@@ -34,8 +34,8 @@ wal-e setup --guide
 
 | Component | Path | Description |
 |-----------|------|-------------|
-| **Collectors** | `src/wal_e/collectors/` | Data collection from Databricks APIs + system tables |
-| **Framework** | `src/wal_e/framework/` | WAL scoring engine (140 best practices, 7 pillars) |
+| **Collectors** | `src/wal_e/collectors/` | Data collection from Databricks APIs + system tables (incl. `ai.py` for Mosaic AI / GenAI assets) |
+| **Framework** | `src/wal_e/framework/` | WAL scoring engine (145 best practices, 7 pillars) |
 | **Reporters** | `src/wal_e/reporters/` | Report generators (MD, CSV, HTML, PPTX, Audit) |
 | **Core** | `src/wal_e/core/` | Orchestration engine, config, cloud detection |
 | **MCP** | `mcp/` | MCP server for AI Dev Kit integration |
@@ -59,15 +59,15 @@ wal-e setup --guide
 
 7. **Configuration** - WAL-E uses `~/.databrickscfg` for host and token. Set `--profile` for different workspaces.
 
-## 7 Pillars (129 Best Practices)
+## 7 Pillars (145 Best Practices)
 
-1. **Data & AI Governance** (15) - Unity Catalog, metadata, lineage, data quality, group management
-2. **Interoperability & Usability** (14) - Open formats, IaC, serverless, self-service
-3. **Operational Excellence** (23) - CI/CD, MLOps, monitoring, environment isolation, rollbacks
-4. **Security** (12) - IAM, SSO/SCIM, encryption, network, VPC/VNET, compliance
-5. **Reliability** (19) - ACID, auto-scaling, DR, backups, service principal ownership
-6. **Performance** (25) - Serverless, data layout, liquid clustering, predictive optimization
-7. **Cost** (20) - Spot/preemptible, reserved instances, tagging, budget alerts
+1. **Data & AI Governance** (17) - Unity Catalog, metadata, lineage, data quality, group management, UC-registered models, inference tables
+2. **Interoperability & Usability** (15) - Open formats, IaC, serverless, self-service
+3. **Operational Excellence** (24) - CI/CD, MLOps, monitoring, environment isolation, rollbacks
+4. **Security** (16) - IAM, SSO/SCIM, encryption, network, VPC/VNET, compliance, LLM guardrails, external-model secrets
+5. **Reliability** (22) - ACID, auto-scaling, DR, backups, service principal ownership, provisioned throughput for LLM serving
+6. **Performance** (28) - Serverless, data layout, liquid clustering, predictive optimization
+7. **Cost** (23) - Spot/preemptible, reserved instances, tagging, budget alerts
 
 ## Adding New Code
 
@@ -80,7 +80,7 @@ wal-e setup --guide
 | File | Description |
 |------|-------------|
 | `WAL_Assessment_Readout.md` | Full detailed report (all 7 pillars) |
-| `WAL_Assessment_Scores.csv` | 129 best practices with scores and notes |
+| `WAL_Assessment_Scores.csv` | 145 best practices with scores and notes |
 | `WAL_Assessment_Presentation.pptx` | Executive readout deck (17 slides) |
 | `WAL_Assessment_Presentation.html` | Browser-based presentation |
 | `WAL_Assessment_Audit_Report.md` | Complete API call evidence trail |

@@ -104,12 +104,19 @@ def _score_gov_005(data: dict) -> tuple[int, str]:
 
 
 def _score_gov_006(data: dict) -> tuple[int, str]:
-    """Govern AI assets."""
-    ops = _get(data, "OperationsCollector") or {}
-    endpoints = ops.get("endpoint_count", 0) or 0
-    if endpoints > 0:
-        return 1, f"{endpoints} serving endpoints — AI assets partially governed. Extend to Model Registry."
-    return 0, "No ML serving endpoints. Register models in MLflow Model Registry."
+    """Govern AI assets together with data (Models/Vector Search in Unity Catalog)."""
+    ai = _get(data, "AICollector") or {}
+    uc_models = ai.get("uc_model_count", 0) or 0
+    ws_models = ai.get("ws_registry_model_count", 0) or 0
+    endpoints = ai.get("endpoint_count", 0) or (_get(data, "OperationsCollector") or {}).get("endpoint_count", 0) or 0
+    vs = ai.get("vs_endpoint_count", 0) or 0
+    if uc_models > 0 and ws_models == 0:
+        return 2, f"{uc_models} model(s) governed in Unity Catalog (VS endpoints: {vs}). AI assets governed with data."
+    if uc_models > 0 and ws_models > 0:
+        return 1, f"{uc_models} UC model(s) but {ws_models} still in workspace registry. Migrate all models to Unity Catalog."
+    if ws_models > 0 or endpoints > 0:
+        return 0, f"AI assets present ({ws_models} workspace-registry models, {endpoints} endpoints) but none in UC. Register models in Unity Catalog."
+    return 1, "No AI assets detected to govern. Register models and features in Unity Catalog when adopting AI."
 
 
 def _score_gov_007(data: dict) -> tuple[int, str]:
@@ -221,6 +228,34 @@ def _score_gov_015(data: dict) -> tuple[int, str]:
     return 0, "Unity Catalog not detected. BROWSE privilege requires UC. Enable UC first."
 
 
+def _score_gov_016(data: dict) -> tuple[int, str]:
+    """Models registered in Unity Catalog (not the legacy workspace registry)."""
+    ai = _get(data, "AICollector") or {}
+    uc_models = ai.get("uc_model_count", 0) or 0
+    ws_models = ai.get("ws_registry_model_count", 0) or 0
+    if uc_models > 0 and ws_models == 0:
+        return 2, f"All {uc_models} registered model(s) are in Unity Catalog. Centralized model governance in place."
+    if uc_models > 0 and ws_models > 0:
+        return 1, f"{uc_models} model(s) in UC but {ws_models} remain in the workspace registry. Migrate remaining models to Models in UC."
+    if ws_models > 0:
+        return 0, f"{ws_models} model(s) in the legacy workspace registry, none in Unity Catalog. Migrate to Models in Unity Catalog."
+    return 1, "No registered models detected. Use Models in Unity Catalog when registering models."
+
+
+def _score_gov_018(data: dict) -> tuple[int, str]:
+    """Inference tables / payload logging enabled for AI endpoints (auditability)."""
+    ai = _get(data, "AICollector") or {}
+    llm = ai.get("llm_endpoint_count", 0) or 0
+    logged = ai.get("endpoints_with_inference_tables", 0) or 0
+    if llm == 0:
+        return 2, "No LLM/GenAI endpoints requiring payload logging detected."
+    if logged >= llm:
+        return 2, f"All {llm} LLM endpoint(s) log payloads via inference tables for audit and monitoring."
+    if logged > 0:
+        return 1, f"{logged}/{llm} LLM endpoint(s) log payloads. Enable inference tables on the remaining endpoints."
+    return 0, f"{llm} LLM endpoint(s) without payload logging. Enable AI Gateway inference tables for auditability."
+
+
 # ---------------------------------------------------------------------------
 # Interoperability & Usability scoring functions
 # ---------------------------------------------------------------------------
@@ -305,12 +340,15 @@ def _score_int_007(data: dict) -> tuple[int, str]:
 
 
 def _score_int_008(data: dict) -> tuple[int, str]:
-    """Open ML standards."""
-    ops = _get(data, "OperationsCollector") or {}
-    endpoints = ops.get("endpoint_count", 0) or 0
+    """Open ML standards (MLflow / Models in Unity Catalog)."""
+    ai = _get(data, "AICollector") or {}
+    uc_models = ai.get("uc_model_count", 0) or 0
+    endpoints = ai.get("endpoint_count", 0) or (_get(data, "OperationsCollector") or {}).get("endpoint_count", 0) or 0
+    if uc_models > 0:
+        return 2, f"Open ML standards in use: {uc_models} MLflow model(s) in Unity Catalog ({endpoints} serving endpoints)."
     if endpoints > 0:
-        return 2, f"MLflow/model serving in use ({endpoints} endpoints)."
-    return 0, "Open ML standards not detected. Use MLflow."
+        return 1, f"{endpoints} serving endpoint(s) but no MLflow models in UC. Register models with MLflow in Unity Catalog."
+    return 0, "Open ML standards not detected. Use MLflow and Models in Unity Catalog."
 
 
 def _score_int_009(data: dict) -> tuple[int, str]:
@@ -722,6 +760,32 @@ def _score_sec_012(data: dict) -> tuple[int, str]:
     return 1, "DBFS root access not verifiable. Disable DBFS file browser and avoid storing data in DBFS root."
 
 
+def _score_sec_015(data: dict) -> tuple[int, str]:
+    """Guardrails (PII, safety) on LLM endpoints."""
+    ai = _get(data, "AICollector") or {}
+    llm = ai.get("llm_endpoint_count", 0) or 0
+    guarded = ai.get("endpoints_with_guardrails", 0) or 0
+    if llm == 0:
+        return 2, "No LLM/GenAI endpoints requiring guardrails detected."
+    if guarded >= llm:
+        return 2, f"All {llm} LLM endpoint(s) have guardrails (PII/safety) configured via AI Gateway."
+    if guarded > 0:
+        return 1, f"{guarded}/{llm} LLM endpoint(s) have guardrails. Add PII/safety guardrails to the remaining endpoints."
+    return 0, f"{llm} LLM endpoint(s) without guardrails. Configure AI Gateway PII filtering and safety filters."
+
+
+def _score_sec_016(data: dict) -> tuple[int, str]:
+    """No plaintext credentials on external-model endpoints."""
+    ai = _get(data, "AICollector") or {}
+    external = ai.get("external_model_endpoint_count", 0) or 0
+    plaintext = ai.get("endpoints_with_plaintext_keys", 0) or 0
+    if plaintext > 0:
+        return 0, f"{plaintext} external-model endpoint(s) carry plaintext credentials. Rotate keys into a secret scope immediately."
+    if external > 0:
+        return 2, f"{external} external-model endpoint(s) reference credentials via secret scopes (no plaintext keys)."
+    return 2, "No external-model endpoints with credentials to protect."
+
+
 # ---------------------------------------------------------------------------
 # Reliability scoring functions
 # ---------------------------------------------------------------------------
@@ -903,6 +967,24 @@ def _score_rel_019(data: dict) -> tuple[int, str]:
     if job_count > 0:
         return 0, "Jobs owned by individual users. Create service principals and transfer production job ownership."
     return 1, "No jobs detected. Use service principals when creating production jobs."
+
+
+def _score_rel_022(data: dict) -> tuple[int, str]:
+    """Provisioned throughput for production LLM serving (vs scale-to-zero)."""
+    ai = _get(data, "AICollector") or {}
+    llm = ai.get("llm_endpoint_count", 0) or 0
+    prod = ai.get("prod_llm_endpoint_count", 0) or 0
+    prod_pt = ai.get("prod_llm_provisioned_throughput", 0) or 0
+    prod_stz = ai.get("prod_llm_scale_to_zero", 0) or 0
+    if llm == 0:
+        return 1, "No LLM endpoints detected. Use provisioned throughput for production LLM serving SLAs."
+    if prod == 0:
+        return 1, f"{llm} LLM endpoint(s), none clearly production-named. Use provisioned throughput for production SLAs (heuristic by name)."
+    if prod_pt >= prod:
+        return 2, f"All {prod} production LLM endpoint(s) use provisioned throughput for stable serving."
+    if prod_stz > 0:
+        return 0, f"{prod_stz}/{prod} production LLM endpoint(s) use scale-to-zero. Use provisioned throughput for latency-sensitive prod traffic."
+    return 1, f"{prod} production LLM endpoint(s); provisioned throughput not confirmed on all. Verify capacity for prod SLAs."
 
 
 # ---------------------------------------------------------------------------
@@ -1593,6 +1675,8 @@ SCORING_REGISTRY: dict[str, Callable[..., tuple[int, str]]] = {
     "gov-013": _score_gov_013,
     "gov-014": _score_gov_014,
     "gov-015": _score_gov_015,
+    "gov-016": _score_gov_016,
+    "gov-018": _score_gov_018,
     "int-001": _score_int_001,
     "int-002": _score_int_002,
     "int-003": _score_int_003,
@@ -1643,6 +1727,8 @@ SCORING_REGISTRY: dict[str, Callable[..., tuple[int, str]]] = {
     "sec-010": _score_sec_010,
     "sec-011": _score_sec_011,
     "sec-012": _score_sec_012,
+    "sec-015": _score_sec_015,
+    "sec-016": _score_sec_016,
     "rel-001": _score_rel_001,
     "rel-002": _score_rel_002,
     "rel-003": _score_rel_003,
@@ -1662,6 +1748,7 @@ SCORING_REGISTRY: dict[str, Callable[..., tuple[int, str]]] = {
     "rel-017": _score_rel_017,
     "rel-018": _score_rel_018,
     "rel-019": _score_rel_019,
+    "rel-022": _score_rel_022,
     "perf-001": _score_perf_001,
     "perf-002": _score_perf_002,
     "perf-003": _score_perf_003,

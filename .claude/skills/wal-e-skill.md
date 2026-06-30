@@ -42,6 +42,7 @@ Common options:
 - `--profile <name>` – Databricks CLI profile
 - `--output <path>` – Output directory
 - `--format md,csv,html,pptx,audit` – Report formats
+- `--deep --warehouse-id <ID>` – Add 11 system-table best practices (requires a SQL warehouse + `SELECT` on `system.*`)
 
 ### Setup Guide (Customer Sessions)
 
@@ -75,7 +76,7 @@ Use when walking a customer through access setup before assessment.
 | File | Use |
 |------|-----|
 | `WAL_Assessment_Readout.md` | Full report, all pillars |
-| `WAL_Assessment_Scores.csv` | 99 best practices, scores, notes |
+| `WAL_Assessment_Scores.csv` | 145 best practices, scores, notes |
 | `WAL_Assessment_Presentation.pptx` | Executive deck |
 | `WAL_Assessment_Audit_Report.md` | API call evidence |
 
