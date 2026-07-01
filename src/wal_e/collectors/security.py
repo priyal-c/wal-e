@@ -19,6 +19,9 @@ class SecurityCollector(BaseCollector):
             "service_principals": [],
             "scim_groups": [],
             "scim_group_count": 0,
+            "scim_groups_with_external_id": 0,
+            "scim_user_count": 0,
+            "scim_users_with_external_id": 0,
         }
 
         # Workspace conf - MUST pass keys as query params
@@ -66,12 +69,18 @@ class SecurityCollector(BaseCollector):
                 if isinstance(sp, dict)
             ][:50]
 
-        # --- NEW: SCIM Groups (to check for IdP-synced groups via externalId) ---
-        data, ok = self.run_api_call("/api/2.0/preview/scim/v2/Groups?count=200")
+        # --- SCIM Groups. externalId marks a group as IdP-provisioned, but note
+        # that in account-level / identity-federated setups externalId lives on
+        # the account object and is frequently NOT returned by this workspace
+        # endpoint even when SCIM is fully configured. Treat its absence as
+        # "unverifiable", not "not implemented" (see scoring). ---
+        data, ok = self.run_api_call(
+            "/api/2.0/preview/scim/v2/Groups?attributes=displayName,externalId&count=200"
+        )
         if ok and data and isinstance(data, dict):
             resources = data.get("Resources", []) or []
             findings["scim_group_count"] = data.get("totalResults", len(resources))
-            findings["scim_groups"] = [
+            groups = [
                 {
                     "displayName": g.get("displayName", ""),
                     "externalId": g.get("externalId"),
@@ -79,6 +88,25 @@ class SecurityCollector(BaseCollector):
                 }
                 for g in resources
                 if isinstance(g, dict)
-            ][:100]
+            ]
+            findings["scim_groups"] = groups[:100]
+            findings["scim_groups_with_external_id"] = sum(
+                1 for g in groups if g.get("externalId")
+            )
+
+        # --- SCIM Users. User-level externalId is a corroborating signal for
+        # IdP provisioning that often survives when group externalId does not.
+        # Only externalId is requested to keep the payload small. ---
+        data, ok = self.run_api_call(
+            "/api/2.0/preview/scim/v2/Users?attributes=userName,externalId&count=1000"
+        )
+        if ok and data and isinstance(data, dict):
+            resources = data.get("Resources", []) or []
+            findings["scim_user_count"] = data.get("totalResults", len(resources))
+            findings["scim_users_with_external_id"] = sum(
+                1
+                for u in resources
+                if isinstance(u, dict) and u.get("externalId")
+            )
 
         return findings
