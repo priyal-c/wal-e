@@ -193,16 +193,27 @@ def _score_gov_012(data: dict) -> tuple[int, str]:
 
 def _score_gov_013(data: dict) -> tuple[int, str]:
     """Account-level group management (Admin Cheat Sheet + UC Best Practices)."""
-    sec = _get(data, "SecurityCollector") or {}
-    scim_groups = sec.get("scim_groups", []) or []
-    scim_count = sec.get("scim_group_count", 0) or len(scim_groups)
-    # Groups with externalId are IdP-synced (account-level)
-    idp_synced = sum(1 for g in scim_groups if isinstance(g, dict) and g.get("externalId"))
-    if idp_synced > 0:
-        return 2, f"{idp_synced}/{scim_count} groups IdP-synced via SCIM. Account-level group management in place."
-    if scim_count > 0:
-        return 1, f"{scim_count} groups exist but none are IdP-synced. Sync groups from your identity provider via SCIM."
-    return 0, "No SCIM groups detected. Use account-level groups synced from your IdP."
+    s = _scim_signals(data)
+    if s["group_synced"] > 0:
+        return 2, (
+            f"{s['group_synced']}/{s['group_count']} group(s) IdP-synced via SCIM. "
+            "Account-level group management in place."
+        )
+    if s["user_synced"] > 0:
+        return 1, (
+            f"{s['user_synced']} IdP-synced user(s) detected but no IdP-synced groups are visible. "
+            "Manage access via account-level, IdP-synced groups."
+        )
+    if s["group_count"] > 0 or s["user_count"] > 0:
+        return 1, (
+            f"{s['group_count']} group(s) present but IdP sync is not verifiable from the workspace API "
+            "(externalId is exposed only at the account level). Verify account-level, IdP-synced groups "
+            "in the account console."
+        )
+    return 1, (
+        "Account-level group management not verifiable from the workspace API. "
+        "Use account-level groups synced from your IdP."
+    )
 
 
 def _score_gov_014(data: dict) -> tuple[int, str]:
@@ -686,36 +697,84 @@ def _score_sec_007(data: dict) -> tuple[int, str]:
     return 1, "Generic controls not fully verified. Use policies and workspace conf."
 
 
+def _scim_signals(data: dict) -> dict:
+    """Extract IdP-provisioning signals from collected security data.
+
+    externalId on workspace-level SCIM groups is the strongest signal, but it is
+    frequently absent in account-level / identity-federated deployments even when
+    SCIM is fully active (externalId lives on the account object and is not
+    returned by the workspace endpoint). User-level externalId corroborates.
+    Group/user counts distinguish "present but unverifiable" from "genuinely empty".
+    """
+    sec = _get(data, "SecurityCollector") or {}
+    scim_groups = sec.get("scim_groups", []) or []
+    group_synced = sec.get("scim_groups_with_external_id")
+    if group_synced is None:
+        group_synced = sum(
+            1 for g in scim_groups if isinstance(g, dict) and g.get("externalId")
+        )
+    return {
+        "group_synced": int(group_synced or 0),
+        "user_synced": int(sec.get("scim_users_with_external_id", 0) or 0),
+        "group_count": int(sec.get("scim_group_count", 0) or len(scim_groups)),
+        "user_count": int(sec.get("scim_user_count", 0) or 0),
+    }
+
+
 def _score_sec_008(data: dict) -> tuple[int, str]:
     """SSO configuration (Admin Cheat Sheet) - cloud-aware."""
     cloud = _cloud(data)
-    sec = _get(data, "SecurityCollector") or {}
-    scim_groups = sec.get("scim_groups", []) or []
-    idp_synced = sum(1 for g in scim_groups if isinstance(g, dict) and g.get("externalId"))
+    s = _scim_signals(data)
     if cloud == "azure":
         idp_name = "Microsoft Entra ID (AAD)"
     elif cloud == "gcp":
         idp_name = "Google Cloud Identity"
     else:
         idp_name = "your identity provider (Okta, AAD, etc.)"
-    if idp_synced > 0:
-        return 2, f"IdP-synced groups detected ({idp_synced}), indicating SSO is configured via {idp_name}."
-    scim_count = sec.get("scim_group_count", 0) or 0
-    if scim_count > 0:
-        return 1, f"Groups exist but no IdP sync detected. Configure SSO via {idp_name} ({cloud.upper()})."
-    return 1, f"SSO not verifiable from workspace API. Set up SSO via {idp_name} ({cloud.upper()})."
+    if s["group_synced"] > 0 or s["user_synced"] > 0:
+        return 2, (
+            f"IdP-synced identities detected ({s['group_synced']} group(s), "
+            f"{s['user_synced']} user(s)), indicating SSO is configured via {idp_name}."
+        )
+    if s["group_count"] > 0 or s["user_count"] > 0:
+        return 1, (
+            "Identities present but IdP sync is not verifiable from the workspace API. "
+            f"Confirm SSO via {idp_name} ({cloud.upper()}) in the account console."
+        )
+    return 1, f"SSO not verifiable from the workspace API. Set up SSO via {idp_name} ({cloud.upper()})."
 
 
 def _score_sec_009(data: dict) -> tuple[int, str]:
-    """SCIM provisioning (Admin Cheat Sheet + UC Best Practices)."""
-    sec = _get(data, "SecurityCollector") or {}
-    scim_groups = sec.get("scim_groups", []) or []
-    idp_synced = sum(1 for g in scim_groups if isinstance(g, dict) and g.get("externalId"))
-    if idp_synced >= 3:
-        return 2, f"{idp_synced} IdP-synced SCIM groups. Automated provisioning in place."
-    if idp_synced > 0:
-        return 1, f"Only {idp_synced} IdP-synced group(s). Expand SCIM provisioning to all groups."
-    return 0, "No SCIM-synced groups detected. Set up SCIM provisioning from your identity provider."
+    """SCIM provisioning (Admin Cheat Sheet + UC Best Practices).
+
+    Never asserts a confident "not implemented" from workspace data alone. SCIM
+    is usually configured at the account level, where the externalId signal this
+    endpoint exposes is not returned, so absence of the signal is reported as
+    unverifiable (partial) rather than a hard 0 that produces false negatives.
+    """
+    s = _scim_signals(data)
+    gs, us = s["group_synced"], s["user_synced"]
+    if gs >= 3 or us >= 10 or (gs >= 1 and us >= 5):
+        return 2, (
+            f"{gs} IdP-synced group(s) and {us} IdP-synced user(s) detected. "
+            "Automated SCIM provisioning in place."
+        )
+    if gs >= 1 or us >= 1:
+        return 1, (
+            f"Partial IdP sync detected ({gs} group(s), {us} user(s)). "
+            "Expand SCIM provisioning to cover all groups and users."
+        )
+    if s["group_count"] > 0 or s["user_count"] > 0:
+        return 1, (
+            "SCIM sync is not verifiable from the workspace API "
+            f"({s['group_count']} group(s), {s['user_count']} user(s) present but no externalId returned). "
+            "SCIM is typically configured at the account level, where externalId is not exposed to this "
+            "endpoint — verify SCIM provisioning in the account console before treating this as a gap."
+        )
+    return 1, (
+        "SCIM provisioning not verifiable from the workspace API. "
+        "Configure or verify account-level SCIM with your identity provider (Okta, Entra ID, etc.)."
+    )
 
 
 def _score_sec_010(data: dict) -> tuple[int, str]:

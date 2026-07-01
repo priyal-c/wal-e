@@ -48,7 +48,7 @@ The assessment’s scoring model is the **Well-Architected Lakehouse Framework**
               |              |              |
      +--------v---+  +------v------+  +----v-------+
      | Collectors  |  |  Scoring    |  | Reporters  |
-     | (27 APIs)   |  |  Engine     |  | (5 formats)|
+     | (30 APIs)   |  |  Engine     |  | (5 formats)|
      | read-only   |  | 134 checks  |  | stays local|
      +--------+---+  +------+------+  +----+-------+
               |              |              |
@@ -332,7 +332,7 @@ Available MCP tools: `wal_e_assess`, `wal_e_collect`, `wal_e_score`, `wal_e_repo
 
 > **Full guide:** See [ACCESS_GUIDE.md](ACCESS_GUIDE.md) for the complete self-service setup guide, permissions reference, and customer-facing instructions.
 
-WAL-E needs **read-only** access to the workspace. It makes **27 HTTP GET API call types** (plus per-endpoint detail calls for serving and Vector Search) and **zero write calls**.
+WAL-E needs **read-only** access to the workspace. It makes **30 HTTP GET API call types** (plus per-endpoint detail calls for serving and Vector Search) and **zero write calls**.
 
 ### Permissions by Assessment Depth
 

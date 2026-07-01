@@ -631,10 +631,13 @@ WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
     GET  /api/2.0/cluster-policies/list
     GET  /api/2.0/instance-pools/list
 
-  {C.BLUE}Security (3 calls){C.RESET}              {C.DIM}[workspace admin REQUIRED]{C.RESET}
+  {C.BLUE}Security (6 calls){C.RESET}              {C.DIM}[workspace admin REQUIRED]{C.RESET}
     GET  /api/2.0/workspace-conf
     GET  /api/2.0/ip-access-lists
     GET  /api/2.0/token/list
+    GET  /api/2.0/preview/scim/v2/ServicePrincipals
+    GET  /api/2.0/preview/scim/v2/Groups
+    GET  /api/2.0/preview/scim/v2/Users
 
   {C.BLUE}Operations (7 calls){C.RESET}            {C.DIM}[admin for complete lists]{C.RESET}
     GET  /api/2.1/jobs/list
