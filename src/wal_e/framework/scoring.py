@@ -153,14 +153,42 @@ def _score_gov_006(data: dict) -> tuple[int, str]:
     ai = _get(data, "AICollector") or {}
     uc_models = ai.get("uc_model_count", 0) or 0
     ws_models = ai.get("ws_registry_model_count", 0) or 0
-    endpoints = ai.get("endpoint_count", 0) or (_get(data, "OperationsCollector") or {}).get("endpoint_count", 0) or 0
-    vs = ai.get("vs_endpoint_count", 0) or 0
+    ep_total = ai.get("endpoint_count", 0) or 0
+    ext_eps = ai.get("external_model_endpoint_count", 0) or 0
+    vs_indexes = ai.get("vs_index_count", 0) or 0
+
+    # Models registered in Unity Catalog = AI assets governed with data.
     if uc_models > 0 and ws_models == 0:
-        return 2, f"{uc_models} model(s) governed in Unity Catalog (VS endpoints: {vs}). AI assets governed with data."
+        return 2, f"{uc_models} model(s) governed in Unity Catalog (Vector Search indexes: {vs_indexes}). AI assets governed with data."
     if uc_models > 0 and ws_models > 0:
-        return 1, f"{uc_models} UC model(s) but {ws_models} still in workspace registry. Migrate all models to Unity Catalog."
-    if ws_models > 0 or endpoints > 0:
-        return 0, f"AI assets present ({ws_models} workspace-registry models, {endpoints} endpoints) but none in UC. Register models in Unity Catalog."
+        return 1, f"{uc_models} UC model(s) but {ws_models} still in the workspace registry. Migrate all models to Unity Catalog."
+
+    # No UC models. If the AI collector produced no signal at all (e.g. older
+    # cached data), governance is genuinely unverifiable — don't assert a gap.
+    if not ai:
+        ops_eps = (_get(data, "OperationsCollector") or {}).get("endpoint_count", 0) or 0
+        if ops_eps > 0:
+            return 1, f"{ops_eps} serving endpoint(s) detected, but AI governance is not verifiable (AI collector data unavailable). Register first-party models in Unity Catalog and confirm with a metastore admin."
+        return 1, "No AI assets detected to govern. Register models and features in Unity Catalog when adopting AI."
+
+    # Models exist only in the legacy workspace registry — a real, verifiable gap.
+    if ws_models > 0:
+        return 1, f"{ws_models} model(s) in the workspace registry but none in Unity Catalog. Migrate models to UC to govern AI assets with data."
+
+    # Endpoints exist but no registered models. External/foundation-model
+    # endpoints do not use UC model registration, so that is not a gap; custom
+    # models served without UC registration is a genuine (flagged) gap. Note that
+    # enumerating UC models requires metastore-admin scope, so this never asserts
+    # a confident 0.
+    if ep_total > 0:
+        if ext_eps >= ep_total:
+            return 1, f"All {ep_total} serving endpoint(s) serve external/foundation models; UC model registration does not apply. Govern access and keys via AI Gateway and Unity Catalog."
+        return 1, f"{ep_total} serving endpoint(s) ({ext_eps} external) but no models registered in Unity Catalog. Register first-party models in UC; confirm the UC model list with a metastore admin."
+
+    # Vector Search indexes are themselves UC-governed AI assets.
+    if vs_indexes > 0:
+        return 1, f"{vs_indexes} Vector Search index(es) present but no UC-registered models. Register models in Unity Catalog to govern AI assets with data."
+
     return 1, "No AI assets detected to govern. Register models and features in Unity Catalog when adopting AI."
 
 
