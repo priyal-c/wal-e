@@ -153,14 +153,42 @@ def _score_gov_006(data: dict) -> tuple[int, str]:
     ai = _get(data, "AICollector") or {}
     uc_models = ai.get("uc_model_count", 0) or 0
     ws_models = ai.get("ws_registry_model_count", 0) or 0
-    endpoints = ai.get("endpoint_count", 0) or (_get(data, "OperationsCollector") or {}).get("endpoint_count", 0) or 0
-    vs = ai.get("vs_endpoint_count", 0) or 0
+    ep_total = ai.get("endpoint_count", 0) or 0
+    ext_eps = ai.get("external_model_endpoint_count", 0) or 0
+    vs_indexes = ai.get("vs_index_count", 0) or 0
+
+    # Models registered in Unity Catalog = AI assets governed with data.
     if uc_models > 0 and ws_models == 0:
-        return 2, f"{uc_models} model(s) governed in Unity Catalog (VS endpoints: {vs}). AI assets governed with data."
+        return 2, f"{uc_models} model(s) governed in Unity Catalog (Vector Search indexes: {vs_indexes}). AI assets governed with data."
     if uc_models > 0 and ws_models > 0:
-        return 1, f"{uc_models} UC model(s) but {ws_models} still in workspace registry. Migrate all models to Unity Catalog."
-    if ws_models > 0 or endpoints > 0:
-        return 0, f"AI assets present ({ws_models} workspace-registry models, {endpoints} endpoints) but none in UC. Register models in Unity Catalog."
+        return 1, f"{uc_models} UC model(s) but {ws_models} still in the workspace registry. Migrate all models to Unity Catalog."
+
+    # No UC models. If the AI collector produced no signal at all (e.g. older
+    # cached data), governance is genuinely unverifiable — don't assert a gap.
+    if not ai:
+        ops_eps = (_get(data, "OperationsCollector") or {}).get("endpoint_count", 0) or 0
+        if ops_eps > 0:
+            return 1, f"{ops_eps} serving endpoint(s) detected, but AI governance is not verifiable (AI collector data unavailable). Register first-party models in Unity Catalog and confirm with a metastore admin."
+        return 1, "No AI assets detected to govern. Register models and features in Unity Catalog when adopting AI."
+
+    # Models exist only in the legacy workspace registry — a real, verifiable gap.
+    if ws_models > 0:
+        return 1, f"{ws_models} model(s) in the workspace registry but none in Unity Catalog. Migrate models to UC to govern AI assets with data."
+
+    # Endpoints exist but no registered models. External/foundation-model
+    # endpoints do not use UC model registration, so that is not a gap; custom
+    # models served without UC registration is a genuine (flagged) gap. Note that
+    # enumerating UC models requires metastore-admin scope, so this never asserts
+    # a confident 0.
+    if ep_total > 0:
+        if ext_eps >= ep_total:
+            return 1, f"All {ep_total} serving endpoint(s) serve external/foundation models; UC model registration does not apply. Govern access and keys via AI Gateway and Unity Catalog."
+        return 1, f"{ep_total} serving endpoint(s) ({ext_eps} external) but no models registered in Unity Catalog. Register first-party models in UC; confirm the UC model list with a metastore admin."
+
+    # Vector Search indexes are themselves UC-governed AI assets.
+    if vs_indexes > 0:
+        return 1, f"{vs_indexes} Vector Search index(es) present but no UC-registered models. Register models in Unity Catalog to govern AI assets with data."
+
     return 1, "No AI assets detected to govern. Register models and features in Unity Catalog when adopting AI."
 
 
@@ -204,7 +232,7 @@ def _score_gov_009(data: dict) -> tuple[int, str]:
     if sec_settings:
         # Settings are accessible, so audit events are at least partially available
         return 1, "Workspace settings accessible; configure systematic audit event monitoring and alerting via system tables."
-    return 0, "No audit events detected. Configure audit log delivery."
+    return 1, "Audit event delivery is not verifiable from the workspace API; it requires the --deep scan (system.access.audit). Run --deep or confirm audit log delivery in the account console before treating this as a gap."
 
 
 def _score_gov_010(data: dict) -> tuple[int, str]:
@@ -269,10 +297,7 @@ def _score_gov_014(data: dict) -> tuple[int, str]:
     if catalog_count > 0 and ext_loc == 0:
         return 2, "Unity Catalog in use with no external locations; likely using managed tables."
     if catalog_count > 0 and ext_loc > 0:
-        ratio = ext_loc / max(catalog_count, 1)
-        if ratio > 0.5:
-            return 0, f"{ext_loc} external locations vs {catalog_count} catalogs. Migrate external tables to managed tables."
-        return 1, f"Some external locations ({ext_loc}). Prefer UC managed tables for new tables."
+        return 1, f"{ext_loc} external location(s) configured, but the managed-vs-external table split is not verifiable from the API (external-location count is not a reliable proxy). Prefer UC managed tables for new tables."
     return 0, "Unity Catalog not detected. Use UC managed tables for full governance."
 
 
@@ -848,8 +873,8 @@ def _score_sec_011(data: dict) -> tuple[int, str]:
     else:
         net = "customer-managed VPC with Private Link"
     if ipl_on:
-        return 1, f"IP access lists enabled ({cloud.upper()}). Verify {net} for network-level security."
-    return 0, f"No network-level controls detected ({cloud.upper()}). Configure {net}."
+        return 1, f"IP access lists enabled ({cloud.upper()}). Network isolation ({net}) is configured at the account/deployment level and is not verifiable from the workspace API; confirm in the account console."
+    return 1, f"Network isolation ({net}) is configured at the account/deployment level and is not verifiable from the workspace API ({cloud.upper()}); confirm in the account console rather than treating this as a gap."
 
 
 def _score_sec_012(data: dict) -> tuple[int, str]:
