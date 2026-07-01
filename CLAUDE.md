@@ -11,7 +11,7 @@ WAL-E auto-detects the cloud provider (AWS / Azure / GCP) from the workspace URL
 ## How to Run
 
 ```bash
-# Standard assessment (27 API call types, 134 best practices)
+# Standard assessment (30 API call types, 134 best practices)
 wal-e assess --profile wal-assessment --output ./my-assessment --format all
 
 # Deep scan (adds system tables: billing, compute, query, audit, lakeflow jobs)
