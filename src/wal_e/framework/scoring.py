@@ -31,6 +31,51 @@ def _cloud(data: dict) -> str:
     return data.get("_cloud_provider", "unknown")
 
 
+# Cluster sources that Databricks provisions and recycles automatically. Compute
+# hygiene practices (auto-termination, periodic restarts, cost-allocation tags)
+# apply to user-managed interactive clusters, not to these ephemeral clusters.
+_EPHEMERAL_CLUSTER_SOURCES = {"PIPELINE", "JOB", "SQL"}
+
+
+def _interactive_clusters(clusters: list) -> list:
+    """Return user-managed all-purpose clusters, excluding ephemeral compute.
+
+    DLT (PIPELINE), job (JOB), and SQL warehouse-backed clusters are created and
+    terminated automatically by Databricks, so scoring compute-hygiene practices
+    against them inflates results (they auto-terminate, are auto-tagged, and are
+    recycled every run).
+    """
+    return [
+        c
+        for c in clusters
+        if isinstance(c, dict)
+        and str(c.get("cluster_source", "")).upper() not in _EPHEMERAL_CLUSTER_SOURCES
+    ]
+
+
+def _is_recent_runtime(version: str) -> bool:
+    """True if a DBR/Spark/DLT runtime string is a recent (>=14.x) release.
+
+    Handles the 'dlt:' prefix on Delta Live Tables runtime images
+    (e.g. 'dlt:17.3.12-...'), which are always current release-channel builds.
+    """
+    if not version:
+        return False
+    v = str(version).strip().lower()
+    if v.startswith("dlt:"):
+        v = v[4:]
+    major = ""
+    for ch in v:
+        if ch.isdigit():
+            major += ch
+        else:
+            break
+    try:
+        return int(major) >= 14
+    except ValueError:
+        return False
+
+
 def _flatten_collected(data: dict) -> dict:
     """Flatten collected_data from collectors into a single dict for easy lookup."""
     result: dict[str, Any] = {}
@@ -601,14 +646,14 @@ def _score_ops_022(data: dict) -> tuple[int, str]:
 def _score_ops_023(data: dict) -> tuple[int, str]:
     """Restart long-running clusters (Jobs Cheat Sheet)."""
     compute = _get(data, "ComputeCollector") or {}
-    clusters = compute.get("clusters", []) or []
-    running = [c for c in clusters if isinstance(c, dict) and c.get("state") == "RUNNING"]
+    clusters = _interactive_clusters(compute.get("clusters", []) or [])
+    running = [c for c in clusters if c.get("state") == "RUNNING"]
     no_auto_term = [c for c in running if not c.get("auto_termination_minutes")]
     if no_auto_term:
-        return 0, f"{len(no_auto_term)} running cluster(s) without auto-termination. Restart periodically for security patches."
+        return 0, f"{len(no_auto_term)} interactive cluster(s) running without auto-termination. Restart periodically for security patches."
     if running:
-        return 1, f"{len(running)} running cluster(s) with auto-termination. Verify periodic restarts for runtime patches."
-    return 2, "No long-running clusters detected."
+        return 1, f"{len(running)} interactive cluster(s) with auto-termination. Verify periodic restarts for runtime patches."
+    return 2, "No long-running interactive clusters detected."
 
 
 # ---------------------------------------------------------------------------
@@ -1264,14 +1309,15 @@ def _score_cost_004(data: dict) -> tuple[int, str]:
     """Up-to-date runtimes."""
     compute = _get(data, "ComputeCollector") or {}
     clusters = compute.get("clusters", []) or []
-    if clusters:
-        versions = [c.get("spark_version", "") for c in clusters if isinstance(c, dict) and c.get("spark_version")]
-        if versions:
-            # Check if any cluster uses a recent DBR (14.x or 15.x)
-            recent = [v for v in versions if any(v.startswith(f"{n}.") for n in range(14, 20))]
-            if recent:
-                return 2, f"Clusters use recent runtimes (e.g. {recent[0]}). {len(recent)}/{len(versions)} up-to-date."
-            return 1, f"Clusters detected with older runtimes (e.g. {versions[0]}). Upgrade to latest DBR."
+    versions = [c.get("spark_version", "") for c in clusters if isinstance(c, dict) and c.get("spark_version")]
+    if versions:
+        recent = [v for v in versions if _is_recent_runtime(v)]
+        ratio = len(recent) / len(versions)
+        if ratio >= 0.8:
+            return 2, f"{len(recent)}/{len(versions)} cluster(s) on recent runtimes (>=14.x)."
+        if recent:
+            return 1, f"Only {len(recent)}/{len(versions)} cluster(s) on recent runtimes. Upgrade the rest to a current DBR."
+        return 1, f"Clusters on older runtimes (e.g. {versions[0]}). Upgrade to a current DBR."
     cluster_count = compute.get("cluster_count", 0) or 0
     if cluster_count > 0:
         return 1, "Clusters present; runtime versions not available. Keep DBR runtimes up to date."
@@ -1343,18 +1389,21 @@ def _score_cost_010(data: dict) -> tuple[int, str]:
 def _score_cost_011(data: dict) -> tuple[int, str]:
     """Auto-termination."""
     compute = _get(data, "ComputeCollector") or {}
-    clusters = compute.get("clusters", []) or []
     warehouses = compute.get("warehouses", []) or []
-    wh_autostop = sum(1 for w in warehouses if isinstance(w, dict) and (w.get("auto_stop_mins") or 0) > 0)
-    cluster_autostop = sum(1 for c in clusters if isinstance(c, dict) and (c.get("auto_termination_minutes") or 0) > 0)
-    total = wh_autostop + cluster_autostop
-    if total > 0:
-        return 2, f"Auto-termination configured: {cluster_autostop} cluster(s), {wh_autostop} warehouse(s)."
-    warehouse_count = compute.get("warehouse_count", 0) or len(warehouses)
-    cluster_count = compute.get("cluster_count", 0) or len(clusters)
-    if warehouse_count > 0 or cluster_count > 0:
-        return 1, "Compute present but auto-termination not configured. Configure auto-stop on warehouses and clusters."
-    return 0, "Enable auto-termination when provisioning."
+    interactive = _interactive_clusters(compute.get("clusters", []) or [])
+    wh_total = len(warehouses)
+    wh_stop = sum(1 for w in warehouses if isinstance(w, dict) and (w.get("auto_stop_mins") or 0) > 0)
+    cl_total = len(interactive)
+    cl_stop = sum(1 for c in interactive if (c.get("auto_termination_minutes") or 0) > 0)
+    if wh_total == 0 and cl_total == 0:
+        return 1, "No interactive clusters or warehouses detected to evaluate auto-termination."
+    wh_ok = wh_total == 0 or wh_stop == wh_total
+    cl_ok = cl_total == 0 or cl_stop == cl_total
+    if wh_ok and cl_ok and (wh_stop + cl_stop) > 0:
+        return 2, f"Auto-termination on all applicable compute: {cl_stop}/{cl_total} interactive cluster(s), {wh_stop}/{wh_total} warehouse(s)."
+    if wh_stop > 0 or cl_stop > 0:
+        return 1, f"Auto-termination partial: {cl_stop}/{cl_total} interactive cluster(s), {wh_stop}/{wh_total} warehouse(s). Configure auto-stop on the rest."
+    return 0, f"No auto-termination configured ({cl_total} interactive cluster(s), {wh_total} warehouse(s)). Enable auto-stop."
 
 
 def _score_cost_012(data: dict) -> tuple[int, str]:
@@ -1370,14 +1419,15 @@ def _score_cost_013(data: dict) -> tuple[int, str]:
 def _score_cost_014(data: dict) -> tuple[int, str]:
     """Tag clusters."""
     compute = _get(data, "ComputeCollector") or {}
-    clusters = compute.get("clusters", []) or []
-    with_tags = sum(1 for c in clusters if isinstance(c, dict) and len(c.get("custom_tags") or {}) > 0)
+    interactive = _interactive_clusters(compute.get("clusters", []) or [])
+    if not interactive:
+        return 1, "No interactive clusters to evaluate for cost-allocation tags (DLT/job clusters are auto-tagged)."
+    with_tags = sum(1 for c in interactive if len(c.get("custom_tags") or {}) > 0)
+    if with_tags == len(interactive):
+        return 2, f"{with_tags}/{len(interactive)} interactive cluster(s) carry custom tags for cost allocation."
     if with_tags > 0:
-        return 2, f"{with_tags} cluster(s) with custom tags for cost allocation."
-    cluster_count = compute.get("cluster_count", 0) or len(clusters)
-    if cluster_count > 0:
-        return 1, "Clusters present but no custom tags. Tag clusters for cost allocation."
-    return 0, "Tag clusters for chargeback and cost monitoring."
+        return 1, f"{with_tags}/{len(interactive)} interactive cluster(s) tagged. Tag all clusters for cost allocation."
+    return 0, "Interactive clusters have no custom tags. Tag clusters for chargeback and cost monitoring."
 
 
 def _score_cost_015(data: dict) -> tuple[int, str]:
