@@ -59,6 +59,8 @@ wal-e setup --guide
 
 7. **Configuration** - WAL-E uses `~/.databrickscfg` for host and token. Set `--profile` for different workspaces.
 
+8. **Documentation Revision** - Every proposed change must account for its documentation impact. Before finishing a change, check whether it affects best-practice counts, API endpoints/call counts, the `setup --guide` output, `README.md`, `ACCESS_GUIDE.md`, `CLAUDE.md`, skills, or Cursor rules — and update them in the same change. If a change has no documentation impact, state that explicitly with the reason.
+
 ## 7 Pillars (145 Best Practices)
 
 1. **Data & AI Governance** (17) - Unity Catalog, metadata, lineage, data quality, group management, UC-registered models, inference tables
