@@ -648,6 +648,14 @@ WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
     GET  /api/2.0/groups/list
     GET  /api/2.0/secrets/list-scopes
 
+  {C.BLUE}AI / GenAI (6 calls){C.RESET}            {C.DIM}[admin for all endpoints; +per-endpoint detail]{C.RESET}
+    GET  /api/2.0/serving-endpoints/{{name}}
+    GET  /api/2.0/vector-search/endpoints
+    GET  /api/2.0/vector-search/indexes?endpoint_name=...
+    GET  /api/2.1/unity-catalog/models
+    GET  /api/2.0/preview/ml/registered-models/search
+    GET  /api/2.0/genie/spaces
+
   {C.BLUE}Workspace (1 call){C.RESET}
     GET  /api/2.0/workspace/list (root only)
 
