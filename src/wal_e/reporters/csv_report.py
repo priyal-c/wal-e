@@ -22,6 +22,41 @@ class CSVReporter(BaseReporter):
     def __init__(self):
         super().__init__("WAL_Assessment_Scores.csv")
 
+    @staticmethod
+    def _unverifiable_reason(notes: str) -> str:
+        """Return a plain-language explanation of why an item could not be verified.
+
+        Categorized from the finding text so customers reading the spreadsheet
+        understand an 'unverifiable' item is a scope/visibility limitation, not a
+        confirmed gap.
+        """
+        n = (notes or "").lower()
+        if "--deep" in n or "system table" in n or "system.access" in n:
+            return (
+                "Why unverifiable: this requires the optional --deep scan "
+                "(Databricks system tables), which was not run. It is a scope "
+                "limitation of the standard scan, not a detected gap."
+            )
+        if "account level" in n or "account-level" in n or "account console" in n:
+            return (
+                "Why unverifiable: this is configured at the Databricks account "
+                "level, which the workspace REST API does not expose. Confirm it "
+                "in the account console before treating it as a gap."
+            )
+        return (
+            "Why unverifiable: the workspace REST API does not expose enough "
+            "detail to confirm this. Treat as needs manual review, not a "
+            "confirmed gap."
+        )
+
+    def _notes_with_reason(self, notes: str, verified: bool) -> str:
+        if verified:
+            return notes
+        reason = self._unverifiable_reason(notes)
+        if not notes:
+            return reason
+        return f"{notes} [{reason}]"
+
     def generate(
         self,
         scored_assessment: ScoredAssessment,
@@ -73,7 +108,7 @@ class CSVReporter(BaseReporter):
                         "Best Practice": bp.get("name", "Unknown"),
                         "Relevant (Y/N)": "Y",
                         "Score (0-2)": str(int(score_val)) if score_val is not None else "",
-                        "Finding/Notes": notes,
+                        "Finding/Notes": self._notes_with_reason(notes, verified),
                         "Verified": "Y" if verified else "N",
                     })
 
@@ -91,13 +126,15 @@ class CSVReporter(BaseReporter):
         remaining = [bp for bp in best_practice_scores
                      if bp.get("pillar", "") not in PILLAR_ORDER]
         for bp in remaining:
+            verified = bp.get("verified", True)
             rows.append({
                 "Pillar": self._pillar_display_name(bp.get("pillar", "")),
                 "Principle": bp.get("principle", ""),
                 "Best Practice": bp.get("name", "Unknown"),
                 "Relevant (Y/N)": "Y",
                 "Score (0-2)": str(int(bp.get("score", 0))),
-                "Finding/Notes": str(bp.get("finding_notes") or ""),
+                "Finding/Notes": self._notes_with_reason(str(bp.get("finding_notes") or ""), verified),
+                "Verified": "Y" if verified else "N",
             })
 
         with open(output_path, "w", newline="", encoding="utf-8") as f:

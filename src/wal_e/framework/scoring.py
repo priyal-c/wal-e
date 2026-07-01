@@ -204,7 +204,7 @@ def _score_gov_009(data: dict) -> tuple[int, str]:
     if sec_settings:
         # Settings are accessible, so audit events are at least partially available
         return 1, "Workspace settings accessible; configure systematic audit event monitoring and alerting via system tables."
-    return 0, "No audit events detected. Configure audit log delivery."
+    return 1, "Audit event delivery is not verifiable from the workspace API; it requires the --deep scan (system.access.audit). Run --deep or confirm audit log delivery in the account console before treating this as a gap."
 
 
 def _score_gov_010(data: dict) -> tuple[int, str]:
@@ -269,10 +269,7 @@ def _score_gov_014(data: dict) -> tuple[int, str]:
     if catalog_count > 0 and ext_loc == 0:
         return 2, "Unity Catalog in use with no external locations; likely using managed tables."
     if catalog_count > 0 and ext_loc > 0:
-        ratio = ext_loc / max(catalog_count, 1)
-        if ratio > 0.5:
-            return 0, f"{ext_loc} external locations vs {catalog_count} catalogs. Migrate external tables to managed tables."
-        return 1, f"Some external locations ({ext_loc}). Prefer UC managed tables for new tables."
+        return 1, f"{ext_loc} external location(s) configured, but the managed-vs-external table split is not verifiable from the API (external-location count is not a reliable proxy). Prefer UC managed tables for new tables."
     return 0, "Unity Catalog not detected. Use UC managed tables for full governance."
 
 
@@ -848,8 +845,8 @@ def _score_sec_011(data: dict) -> tuple[int, str]:
     else:
         net = "customer-managed VPC with Private Link"
     if ipl_on:
-        return 1, f"IP access lists enabled ({cloud.upper()}). Verify {net} for network-level security."
-    return 0, f"No network-level controls detected ({cloud.upper()}). Configure {net}."
+        return 1, f"IP access lists enabled ({cloud.upper()}). Network isolation ({net}) is configured at the account/deployment level and is not verifiable from the workspace API; confirm in the account console."
+    return 1, f"Network isolation ({net}) is configured at the account/deployment level and is not verifiable from the workspace API ({cloud.upper()}); confirm in the account console rather than treating this as a gap."
 
 
 def _score_sec_012(data: dict) -> tuple[int, str]:
