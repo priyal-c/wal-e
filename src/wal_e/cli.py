@@ -607,10 +607,14 @@ WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
 {C.BOLD}COVERAGE BY ACCESS LEVEL{C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
-  Regular user ................. ~40% of best practices scored
+  Role                         Coverage
+  {C.GREEN}Account admin (recommended){C.RESET} .. 100% — all pillars; unlocks --deep + account-level SSO/SCIM/network/audit
+  {C.GREEN}Metastore admin{C.RESET} .............. ~95% of best practices scored
   {C.YELLOW}Workspace admin{C.RESET} .............. ~80% of best practices scored
-  {C.GREEN}Workspace + Metastore admin{C.RESET} .. ~95% of best practices scored
-  Above + System tables ........ 100% of best practices scored
+  Regular user ................. ~40% of best practices scored
+
+  {C.DIM}Running as an account admin gives the truest, all-pillar picture. Lower roles
+  leave account-level controls (SSO/SCIM, network, audit) unverifiable.{C.RESET}
 
 {C.BOLD}API CALLS MADE (ALL READ-ONLY){C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
