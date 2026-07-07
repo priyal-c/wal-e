@@ -199,6 +199,8 @@ rm -rf ./my-assessment
 
 ## 5. Required Permissions by Collector
 
+> **Recommended role: account admin.** WAL-E works at any access level, but an account admin gives the truest, most accurate assessment across all seven pillars — it unlocks the `--deep` system-tables scan and is what lets you confirm the account-level controls (SSO, SCIM, network isolation, audit logging) that a workspace-only role can only report as *unverifiable*. See [Permissions by Coverage](#permissions-by-coverage) for the full role ladder.
+
 WAL-E runs 7 collectors. Here is exactly what each one needs:
 
 ### Collector 1: Authentication & Identity
@@ -401,12 +403,14 @@ Install through whichever interpreter reports 3.10 or newer, using `<that-python
 
 ### Permissions by Coverage
 
-| Access Level | Coverage |
-|-------------|:--------:|
-| Regular user | ~40% of best practices |
-| **Workspace admin** | **~80%** |
-| **Workspace admin + Metastore admin** | **~95%** |
-| Above + System tables | **100%** |
+> **Account admin is highly recommended.** It produces the most complete and accurate picture across all seven pillars, is required to enable the `--deep` system-tables scan, and is what lets you confirm the account-level controls — SSO, SCIM, network isolation, and audit logging — that a workspace-only role can only mark as *unverifiable*.
+
+| Role | Access Level | Coverage |
+|------|-------------|:--------:|
+| **Account admin** _(recommended)_ | Workspace + metastore admin + system tables | **100%** |
+| Metastore admin | Workspace admin + metastore admin | **~95%** |
+| Workspace admin | Workspace admin | **~80%** |
+| User | Regular user | ~40% of best practices |
 
 ---
 
@@ -456,4 +460,4 @@ Total time: ~30 minutes
 
 ---
 
-*Document version: 2.2 | WAL-E v0.1.0 | Customer self-service model | Last updated: July 2026*
+*Document version: 2.3 | WAL-E v0.1.0 | Customer self-service model | Last updated: July 2026*

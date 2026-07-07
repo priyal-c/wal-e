@@ -336,14 +336,16 @@ WAL-E needs **read-only** access to the workspace. It makes **30 HTTP GET API ca
 
 ### Permissions by Assessment Depth
 
-| Access Level                          | What You Get                                        | Coverage |
-| ------------------------------------- | --------------------------------------------------- | :------: |
-| Regular user                          | Own clusters, permitted catalogs, own jobs          |   ~40%   |
-| **Workspace admin**                   | All clusters, warehouses, security config, all jobs | **~80%** |
-| **Workspace admin + Metastore admin** | Above + all catalogs, credentials, locations        | **~95%** |
-| Above + System tables                 | Full above + billing, audit, query history          | **100%** |
+> **Run as an account admin (highly recommended).** Account-admin access, together with the `--deep` system-tables scan, produces the most complete and accurate assessment across all seven pillars. It is also what lets you confirm the account-level controls — SSO, SCIM, network isolation, and audit logging — that a workspace-only role can only report as *unverifiable*.
 
-**Recommended:** Workspace admin + Metastore admin for a meaningful assessment.
+| Role                              | Access Level                                 | What You Get                                                                                        | Coverage |
+| --------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------- | :------: |
+| **Account admin** _(recommended)_ | Workspace + metastore admin **+ system tables** | Everything below, plus billing, audit, query history, and confirmation of account-level SSO/SCIM/network controls | **100%** |
+| Metastore admin                   | Workspace admin + metastore admin            | Above + all catalogs, storage credentials, external locations                                       | **~95%** |
+| Workspace admin                   | Workspace admin                              | All clusters, warehouses, security config, all jobs                                                 | **~80%** |
+| User                              | Regular user                                 | Own clusters, permitted catalogs, own jobs                                                          |   ~40%   |
+
+**Recommended:** account admin for a true, all-pillar picture; at minimum workspace admin + metastore admin for a meaningful assessment.
 
 ### What WAL-E Will NEVER Do
 
