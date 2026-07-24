@@ -11,7 +11,7 @@ WAL-E auto-detects the cloud provider (AWS / Azure / GCP) from the workspace URL
 ## How to Run
 
 ```bash
-# Standard assessment (27 API call types, 134 best practices)
+# Standard assessment (30 API call types, 134 best practices)
 wal-e assess --profile wal-assessment --output ./my-assessment --format all
 
 # Deep scan (adds system tables: billing, compute, query, audit, lakeflow jobs)
@@ -58,6 +58,8 @@ wal-e setup --guide
 6. **Audit Trail** - All reports must include or reference an audit trail of API calls made.
 
 7. **Configuration** - WAL-E uses `~/.databrickscfg` for host and token. Set `--profile` for different workspaces.
+
+8. **Documentation Revision** - Every proposed change must account for its documentation impact. Before finishing a change, check whether it affects best-practice counts, API endpoints/call counts, the `setup --guide` output, `README.md`, `ACCESS_GUIDE.md`, `CLAUDE.md`, skills, or Cursor rules — and update them in the same change. If a change has no documentation impact, state that explicitly with the reason.
 
 ## 7 Pillars (145 Best Practices)
 

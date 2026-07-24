@@ -48,7 +48,7 @@ The assessment’s scoring model is the **Well-Architected Lakehouse Framework**
               |              |              |
      +--------v---+  +------v------+  +----v-------+
      | Collectors  |  |  Scoring    |  | Reporters  |
-     | (27 APIs)   |  |  Engine     |  | (5 formats)|
+     | (30 APIs)   |  |  Engine     |  | (5 formats)|
      | read-only   |  | 134 checks  |  | stays local|
      +--------+---+  +------+------+  +----+-------+
               |              |              |
@@ -80,6 +80,36 @@ The assessment’s scoring model is the **Well-Architected Lakehouse Framework**
 | **What does the SA see?**   | Only what the customer **chooses to share** (e.g., via screen share or sending the report) |
 | **What does WAL-E access?** | **Metadata only** — never reads table data, file contents, or secret values                |
 | **How to clean up?**        | Customer revokes their PAT token (or OAuth session expires automatically) and deletes local results |
+
+---
+
+## Access Requirements
+
+> **Full guide:** See [ACCESS_GUIDE.md](ACCESS_GUIDE.md) for the complete self-service setup guide, permissions reference, and customer-facing instructions.
+
+WAL-E needs **read-only** access to the workspace. It makes **30 HTTP GET API call types** (plus per-endpoint detail calls for serving and Vector Search) and **zero write calls**.
+
+### Permissions by Assessment Depth
+
+> **Run as an account admin (highly recommended).** Account-admin access, together with the `--deep` system-tables scan, produces the most complete and accurate assessment across all seven pillars. It is also what lets you confirm the account-level controls — SSO, SCIM, network isolation, and audit logging — that a workspace-only role can only report as *unverifiable*.
+
+| Role                              | Access Level                                 | What You Get                                                                                        | Coverage |
+| --------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------- | :------: |
+| **Account admin** _(recommended)_ | Workspace + metastore admin **+ system tables** | Everything below, plus billing, audit, query history, and confirmation of account-level SSO/SCIM/network controls | **100%** |
+| Metastore admin                   | Workspace admin + metastore admin            | Above + all catalogs, storage credentials, external locations                                       | **~95%** |
+| Workspace admin                   | Workspace admin                              | All clusters, warehouses, security config, all jobs                                                 | **~80%** |
+| User                              | Regular user                                 | Own clusters, permitted catalogs, own jobs                                                          |   ~40%   |
+
+**Recommended:** account admin for a true, all-pillar picture; at minimum workspace admin + metastore admin for a meaningful assessment.
+
+### What WAL-E Will NEVER Do
+
+- Read table data, file contents, or query results
+- Execute notebooks, jobs, or pipelines
+- Create, modify, or delete any resource
+- Start or stop any cluster or warehouse
+- Access secret values (only scope names)
+- Transmit data to any external service
 
 ---
 
@@ -347,34 +377,6 @@ powershell -ExecutionPolicy Bypass -File .\install.ps1 --mcp
 ```
 
 Available MCP tools: `wal_e_assess`, `wal_e_collect`, `wal_e_score`, `wal_e_report`, `wal_e_validate`
-
----
-
-## Access Requirements
-
-> **Full guide:** See [ACCESS_GUIDE.md](ACCESS_GUIDE.md) for the complete self-service setup guide, permissions reference, and customer-facing instructions.
-
-WAL-E needs **read-only** access to the workspace. It makes **27 HTTP GET API call types** (plus per-endpoint detail calls for serving and Vector Search) and **zero write calls**.
-
-### Permissions by Assessment Depth
-
-| Access Level                          | What You Get                                        | Coverage |
-| ------------------------------------- | --------------------------------------------------- | :------: |
-| Regular user                          | Own clusters, permitted catalogs, own jobs          |   ~40%   |
-| **Workspace admin**                   | All clusters, warehouses, security config, all jobs | **~80%** |
-| **Workspace admin + Metastore admin** | Above + all catalogs, credentials, locations        | **~95%** |
-| Above + System tables                 | Full above + billing, audit, query history          | **100%** |
-
-**Recommended:** Workspace admin + Metastore admin for a meaningful assessment.
-
-### What WAL-E Will NEVER Do
-
-- Read table data, file contents, or query results
-- Execute notebooks, jobs, or pipelines
-- Create, modify, or delete any resource
-- Start or stop any cluster or warehouse
-- Access secret values (only scope names)
-- Transmit data to any external service
 
 ---
 

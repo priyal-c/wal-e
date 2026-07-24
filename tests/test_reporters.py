@@ -101,8 +101,12 @@ def test_reporters():
             output_dir,
         )
         assert path_csv.exists()
-        lines = path_csv.read_text().strip().split("\n")
-        assert len(lines) >= 99  # header + 99 best practices
+        csv_text = path_csv.read_text()
+        lines = csv_text.strip().split("\n")
+        num_bps = len(SAMPLE_SCORED_ASSESSMENT["best_practice_scores"])
+        assert len(lines) >= num_bps + 1  # header + one row per best practice
+        for bp in SAMPLE_SCORED_ASSESSMENT["best_practice_scores"]:
+            assert bp["name"] in csv_text
 
         # HTML
         html = HTMLDeckReporter()

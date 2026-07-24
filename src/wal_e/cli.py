@@ -703,10 +703,14 @@ WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
 {C.BOLD}COVERAGE BY ACCESS LEVEL{C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
 
-  Regular user ................. ~40% of best practices scored
+  Role                         Coverage
+  {C.GREEN}Account admin (recommended){C.RESET} .. 100% — all pillars; unlocks --deep + account-level SSO/SCIM/network/audit
+  {C.GREEN}Metastore admin{C.RESET} .............. ~95% of best practices scored
   {C.YELLOW}Workspace admin{C.RESET} .............. ~80% of best practices scored
-  {C.GREEN}Workspace + Metastore admin{C.RESET} .. ~95% of best practices scored
-  Above + System tables ........ 100% of best practices scored
+  Regular user ................. ~40% of best practices scored
+
+  {C.DIM}Running as an account admin gives the truest, all-pillar picture. Lower roles
+  leave account-level controls (SSO/SCIM, network, audit) unverifiable.{C.RESET}
 
 {C.BOLD}API CALLS MADE (ALL READ-ONLY){C.RESET}
 {C.DIM}──────────────────────────────────────────────────────────────{C.RESET}
@@ -727,10 +731,13 @@ WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
     GET  /api/2.0/cluster-policies/list
     GET  /api/2.0/instance-pools/list
 
-  {C.BLUE}Security (3 calls){C.RESET}              {C.DIM}[workspace admin REQUIRED]{C.RESET}
+  {C.BLUE}Security (6 calls){C.RESET}              {C.DIM}[workspace admin REQUIRED]{C.RESET}
     GET  /api/2.0/workspace-conf
     GET  /api/2.0/ip-access-lists
     GET  /api/2.0/token/list
+    GET  /api/2.0/preview/scim/v2/ServicePrincipals
+    GET  /api/2.0/preview/scim/v2/Groups
+    GET  /api/2.0/preview/scim/v2/Users
 
   {C.BLUE}Operations (7 calls){C.RESET}            {C.DIM}[admin for complete lists]{C.RESET}
     GET  /api/2.1/jobs/list
@@ -740,6 +747,14 @@ WAL-E makes {C.BOLD}21 read-only API calls{C.RESET} to assess your workspace.
     GET  /api/2.0/global-init-scripts
     GET  /api/2.0/groups/list
     GET  /api/2.0/secrets/list-scopes
+
+  {C.BLUE}AI / GenAI (6 calls){C.RESET}            {C.DIM}[admin for all endpoints; +per-endpoint detail]{C.RESET}
+    GET  /api/2.0/serving-endpoints/{{name}}
+    GET  /api/2.0/vector-search/endpoints
+    GET  /api/2.0/vector-search/indexes?endpoint_name=...
+    GET  /api/2.1/unity-catalog/models
+    GET  /api/2.0/preview/ml/registered-models/search
+    GET  /api/2.0/genie/spaces
 
   {C.BLUE}Workspace (1 call){C.RESET}
     GET  /api/2.0/workspace/list (root only)

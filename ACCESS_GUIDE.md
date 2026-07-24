@@ -182,7 +182,7 @@ wal-e assess --profile wal-assessment --output ./my-assessment --format all
 
 WAL-E will:
 1. Auto-detect your cloud provider (AWS / Azure / GCP)
-2. Run 27 read-only API call types to collect workspace metadata (plus per-endpoint detail calls for serving and Vector Search)
+2. Run 30 read-only API call types to collect workspace metadata (plus per-endpoint detail calls for serving and Vector Search)
 3. Score 134 best practices across 7 pillars (145 with `--deep`)
 4. Generate reports in the output directory
 
@@ -219,6 +219,8 @@ rm -rf ./my-assessment
 
 ## 5. Required Permissions by Collector
 
+> **Recommended role: account admin.** WAL-E works at any access level, but an account admin gives the truest, most accurate assessment across all seven pillars — it unlocks the `--deep` system-tables scan and is what lets you confirm the account-level controls (SSO, SCIM, network isolation, audit logging) that a workspace-only role can only report as *unverifiable*. See [Permissions by Coverage](#permissions-by-coverage) for the full role ladder.
+
 WAL-E runs 7 collectors. Here is exactly what each one needs:
 
 ### Collector 1: Authentication & Identity
@@ -253,6 +255,11 @@ WAL-E runs 7 collectors. Here is exactly what each one needs:
 | `GET /api/2.0/workspace-conf` | Workspace admin | **Yes** |
 | `GET /api/2.0/ip-access-lists` | Workspace admin | **Yes** |
 | `GET /api/2.0/token/list` | Any authenticated user | No |
+| `GET /api/2.0/preview/scim/v2/ServicePrincipals` | Any workspace user | No |
+| `GET /api/2.0/preview/scim/v2/Groups?attributes=displayName,externalId` | Any workspace user | No |
+| `GET /api/2.0/preview/scim/v2/Users?attributes=userName,externalId` | Any workspace user | No |
+
+> **SCIM / identity note:** `externalId` marks an identity as IdP-provisioned. In account-level (identity-federated) setups it lives on the account object and is frequently **not** returned by these workspace endpoints even when SCIM is fully configured. WAL-E treats its absence as *unverifiable*, not *not implemented*, and points you to the account console to confirm.
 
 ### Collector 5: Operations
 
@@ -287,7 +294,7 @@ WAL-E runs 7 collectors. Here is exactly what each one needs:
 
 ## 6. Complete API Endpoint Reference
 
-**All calls are GET (read-only). 27 endpoint types; the AI collector also issues per-endpoint detail calls for serving and Vector Search (capped at 50 each). Zero write calls.**
+**All calls are GET (read-only). 30 endpoint types; the AI collector also issues per-endpoint detail calls for serving and Vector Search (capped at 50 each). Zero write calls.**
 
 ```
 # Authentication (2 calls)
@@ -306,10 +313,13 @@ GET /api/2.0/sql/warehouses
 GET /api/2.0/cluster-policies/list
 GET /api/2.0/instance-pools/list
 
-# Security Configuration (3 calls)
+# Security Configuration (6 calls)
 GET /api/2.0/workspace-conf?keys=enableResultsDownloading,enableDbfsFileBrowser,...
 GET /api/2.0/ip-access-lists
 GET /api/2.0/token/list
+GET /api/2.0/preview/scim/v2/ServicePrincipals
+GET /api/2.0/preview/scim/v2/Groups?attributes=displayName,externalId
+GET /api/2.0/preview/scim/v2/Users?attributes=userName,externalId
 
 # Operations (7 calls)
 GET /api/2.1/jobs/list
@@ -413,12 +423,14 @@ Install through whichever interpreter reports 3.10 or newer, using `<that-python
 
 ### Permissions by Coverage
 
-| Access Level | Coverage |
-|-------------|:--------:|
-| Regular user | ~40% of best practices |
-| **Workspace admin** | **~80%** |
-| **Workspace admin + Metastore admin** | **~95%** |
-| Above + System tables | **100%** |
+> **Account admin is highly recommended.** It produces the most complete and accurate picture across all seven pillars, is required to enable the `--deep` system-tables scan, and is what lets you confirm the account-level controls — SSO, SCIM, network isolation, and audit logging — that a workspace-only role can only mark as *unverifiable*.
+
+| Role | Access Level | Coverage |
+|------|-------------|:--------:|
+| **Account admin** _(recommended)_ | Workspace + metastore admin + system tables | **100%** |
+| Metastore admin | Workspace admin + metastore admin | **~95%** |
+| Workspace admin | Workspace admin | **~80%** |
+| User | Regular user | ~40% of best practices |
 
 ---
 
@@ -468,4 +480,4 @@ Total time: ~30 minutes
 
 ---
 
-*Document version: 2.1 | WAL-E v0.1.0 | Customer self-service model | Last updated: June 2026*
+*Document version: 2.3 | WAL-E v0.1.0 | Customer self-service model | Last updated: July 2026*
