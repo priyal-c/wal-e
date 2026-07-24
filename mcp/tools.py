@@ -51,11 +51,11 @@ def wal_e_assess(profile: str = "DEFAULT", output_dir: str = "./wal-e-assessment
 
         cache_dir = out_path / ".wal-e-cache"
         cache_dir.mkdir(exist_ok=True)
-        with open(cache_dir / "collected_data.json", "w") as f:
+        with open(cache_dir / "collected_data.json", "w", encoding="utf-8") as f:
             json.dump(result.collected_data, f, default=str, indent=2)
-        with open(cache_dir / "scored_assessment.json", "w") as f:
+        with open(cache_dir / "scored_assessment.json", "w", encoding="utf-8") as f:
             json.dump(asdict(scored), f, indent=2)
-        with open(cache_dir / "audit_entries.json", "w") as f:
+        with open(cache_dir / "audit_entries.json", "w", encoding="utf-8") as f:
             json.dump(audit_entries, f, indent=2)
 
         # Generate reports
@@ -142,7 +142,7 @@ def wal_e_score(collected_data_path: str) -> dict:
         else:
             return {"success": False, "error": f"Collected data not found at {collected_data_path}"}
 
-        with open(data_file) as f:
+        with open(data_file, encoding="utf-8") as f:
             collected_data = json.load(f)
 
         scoring_engine = ScoringEngine()
@@ -178,13 +178,13 @@ def wal_e_report(assessment_path: str, format: str = "md") -> dict:
         if not cache_dir.exists():
             return {"success": False, "error": f"No cached data at {assessment_path}"}
 
-        with open(cache_dir / "collected_data.json") as f:
+        with open(cache_dir / "collected_data.json", encoding="utf-8") as f:
             collected_data = json.load(f)
-        with open(cache_dir / "scored_assessment.json") as f:
+        with open(cache_dir / "scored_assessment.json", encoding="utf-8") as f:
             scored_dict = json.load(f)
         audit_entries = []
         if (cache_dir / "audit_entries.json").exists():
-            with open(cache_dir / "audit_entries.json") as f:
+            with open(cache_dir / "audit_entries.json", encoding="utf-8") as f:
                 audit_entries = json.load(f)
 
         reporter_format = {

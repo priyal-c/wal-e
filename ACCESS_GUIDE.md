@@ -82,17 +82,19 @@ WAL-E is designed so the **customer runs everything on their own system**. The S
 
 You need these on **your** machine (the customer's machine):
 
-| Requirement | Details | Install |
-|-------------|---------|---------|
-| **Python** | 3.10 or newer | [python.org](https://python.org) |
-| **Databricks CLI** | v0.200+ | `brew install databricks` (recommended) or `python3.10 -m pip install databricks-cli` |
-| **Git** | For cloning WAL-E | Usually pre-installed on Mac/Linux |
-| **GitHub CLI** | Optional, for easy cloning | `brew install gh` or [cli.github.com](https://cli.github.com) |
-| **Network** | Outbound HTTPS (443) to your Databricks workspace URL | Usually already available |
+| Requirement | Details | Install (macOS/Linux) | Install (Windows) |
+|-------------|---------|-----------------------|-------------------|
+| **Python** | 3.10 or newer | [python.org](https://python.org) | [python.org](https://www.python.org/downloads/windows/) — tick "Add python.exe to PATH" |
+| **Databricks CLI** | v0.200+ | `brew install databricks` or `python3.10 -m pip install databricks-cli` | `winget install Databricks.DatabricksCLI` or `py -3 -m pip install databricks-cli` |
+| **Git** | For cloning WAL-E | Usually pre-installed on Mac/Linux | [git-scm.com](https://git-scm.com/download/win) |
+| **GitHub CLI** | Optional, for easy cloning | `brew install gh` or [cli.github.com](https://cli.github.com) | `winget install GitHub.cli` |
+| **Network** | Outbound HTTPS (443) to your Databricks workspace URL | Usually already available | Usually already available |
 
 Your SA can help you verify these during the setup call.
 
-> **Heads up — use `python3.10 -m pip`, not a bare `pip`.** `pip`, `pip3`, and `pip3.10` can each be bound to a *different* Python interpreter. If your bare `pip` points at an older Python, the install fails with `requires a different Python: 3.x not in '>=3.10'` or `pip: command not found`. Running `python3.10 -m pip` (substitute your exact minor version, e.g. `python3.11`) forces the install into the right interpreter. The `./install.sh` script auto-detects a 3.10+ interpreter for you.
+> **Heads up — use `python3.10 -m pip`, not a bare `pip`** (on Windows, `py -3 -m pip`). `pip`, `pip3`, and `pip3.10` can each be bound to a *different* Python interpreter. If your bare `pip` points at an older Python, the install fails with `requires a different Python: 3.x not in '>=3.10'` or `pip: command not found`. Running `python3.10 -m pip` (substitute your exact minor version, e.g. `python3.11`) forces the install into the right interpreter. The `./install.sh` (macOS/Linux) and `install.ps1` (Windows) scripts auto-detect a 3.10+ interpreter for you.
+
+> **Windows users:** Run WAL-E from **Windows Terminal** or **PowerShell**. Colors and progress glyphs auto-enable on Windows 10+ and degrade to plain ASCII when unsupported or when output is redirected to a file. Pass `--no-color` (or set `NO_COLOR=1`) to force plain text.
 
 ---
 
@@ -101,6 +103,8 @@ Your SA can help you verify these during the setup call.
 Your SA will walk you through these steps on a screen share call.
 
 ### Step 1: Install WAL-E (2 minutes)
+
+**macOS / Linux:**
 
 ```bash
 # Clone the repository
@@ -112,6 +116,22 @@ cd wal-e
 
 # Or install manually, invoking pip through your Python 3.10+ interpreter
 python3.10 -m pip install -e .
+
+# Verify installation
+wal-e --version
+```
+
+**Windows (PowerShell):**
+
+```powershell
+git clone https://github.com/priyal-c/wal-e.git
+cd wal-e
+
+# Recommended: installer auto-detects a Python 3.10+ interpreter (uses the 'py' launcher)
+powershell -ExecutionPolicy Bypass -File .\install.ps1 --cli
+
+# Or install manually through the Windows Python launcher
+py -3 -m pip install -e .
 
 # Verify installation
 wal-e --version
