@@ -7,7 +7,9 @@ Command-line interface for running assessments, validation, and report generatio
 from __future__ import annotations
 
 import argparse
+import ctypes
 import json
+import os
 import signal
 import subprocess
 import sys
@@ -16,7 +18,9 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
-# ANSI color codes
+
+# ANSI color codes. Emptied by C.disable() when output is not a TTY,
+# when --no-color / NO_COLOR is set, or when the terminal can't render ANSI.
 class C:
     RESET = "\033[0m"
     BOLD = "\033[1m"
@@ -28,29 +32,119 @@ class C:
     CYAN = "\033[96m"
     WHITE = "\033[97m"
 
+    _NAMES = ("RESET", "BOLD", "DIM", "RED", "GREEN", "YELLOW", "BLUE", "CYAN", "WHITE")
 
-WAL_E_BANNER = """
-\x1b[96m __        __           ||       |_____
- \\ \\      / /    / \\    ||        | ____|
-  \\ \\ /\\ / /    / _ \\   ||        | |__
-   \\ V  V /    / ___ \\  ||        |  __|
-    \\_/\\_/    /_/   \\_\\ ||____    |_|____
-\x1b[0m    \x1b[2mWell-Architected Lakehouse Evaluator\x1b[0m
-    \x1b[2mRuns on YOUR machine • SA guides you\x1b[0m
-"""
+    @classmethod
+    def disable(cls) -> None:
+        for name in cls._NAMES:
+            setattr(cls, name, "")
+
+
+# Display glyphs. Degraded to ASCII by G.to_ascii() when the active output
+# stream can't encode Unicode (e.g. a legacy Windows console code page).
+class G:
+    CHECK = "✓"
+    CROSS = "✗"
+    BULLET = "•"
+    BAR_FULL = "█"
+    BAR_EMPTY = "░"
+    RULE = "─"
+    SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+
+    @classmethod
+    def to_ascii(cls) -> None:
+        cls.CHECK = "OK"
+        cls.CROSS = "X"
+        cls.BULLET = "-"
+        cls.BAR_FULL = "#"
+        cls.BAR_EMPTY = "."
+        cls.RULE = "-"
+        cls.SPINNER = ["|", "/", "-", "\\"]
+
+
+def _stream_supports_unicode(stream: Any) -> bool:
+    encoding = getattr(stream, "encoding", None)
+    if not encoding:
+        return False
+    try:
+        "█✓─⠋•".encode(encoding)
+        return True
+    except (UnicodeEncodeError, LookupError, TypeError):
+        return False
+
+
+def _enable_windows_vt() -> bool:
+    """Enable ANSI escape processing on the Windows console (Windows 10+).
+
+    Returns True on non-Windows platforms (nothing to do) or when virtual
+    terminal processing was enabled, False if it could not be enabled.
+    """
+    if sys.platform != "win32":
+        return True
+    try:
+        kernel32 = ctypes.windll.kernel32
+        enable_vt = 0x0004  # ENABLE_VIRTUAL_TERMINAL_PROCESSING
+        enabled = False
+        for handle_id in (-11, -12):  # STD_OUTPUT_HANDLE, STD_ERROR_HANDLE
+            handle = kernel32.GetStdHandle(handle_id)
+            mode = ctypes.c_uint32()
+            if kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+                kernel32.SetConsoleMode(handle, mode.value | enable_vt)
+                enabled = True
+        return enabled
+    except Exception:
+        return False
+
+
+def _init_console(no_color: bool = False) -> None:
+    """Make console output portable across macOS, Linux, and Windows.
+
+    Forces UTF-8 with replacement on stdout/stderr so redirected or piped
+    output on Windows (cp1252) never raises UnicodeEncodeError, turns on ANSI
+    on the Windows console, and falls back to plain text / ASCII glyphs when
+    color or Unicode is not supported.
+    """
+    for name in ("stdout", "stderr"):
+        stream = getattr(sys, name, None)
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            try:
+                reconfigure(encoding="utf-8", errors="replace")
+            except (ValueError, OSError):
+                pass
+
+    vt_enabled = _enable_windows_vt()
+    is_tty = bool(getattr(sys.stdout, "isatty", lambda: False)())
+    if no_color or os.environ.get("NO_COLOR") or not is_tty or not vt_enabled:
+        C.disable()
+
+    if not _stream_supports_unicode(sys.stdout):
+        G.to_ascii()
 
 
 def _print_banner(quiet: bool = False) -> None:
-    if not quiet:
-        print(WAL_E_BANNER)
+    if quiet:
+        return
+    art = (
+        " __        __           ||       |_____\n"
+        " \\ \\      / /    / \\    ||        | ____|\n"
+        "  \\ \\ /\\ / /    / _ \\   ||        | |__\n"
+        "   \\ V  V /    / ___ \\  ||        |  __|\n"
+        "    \\_/\\_/    /_/   \\_\\ ||____    |_|____"
+    )
+    print(
+        f"\n{C.CYAN}{art}{C.RESET}\n"
+        f"    {C.DIM}Well-Architected Lakehouse Evaluator{C.RESET}\n"
+        f"    {C.DIM}Runs on YOUR machine {G.BULLET} SA guides you{C.RESET}\n"
+    )
 
 
 def _progress_spinner(quiet: bool, stop_event: list) -> None:
-    chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+    frames = G.SPINNER
     i = 0
     while not stop_event[0]:
         if not quiet:
-            print(f"\r{C.CYAN}{chars[i % len(chars)]}{C.RESET} Collecting...", end="", flush=True)
+            print(f"\r{C.CYAN}{frames[i % len(frames)]}{C.RESET} Collecting...", end="", flush=True)
         i += 1
         time.sleep(0.08)
 
@@ -73,14 +167,14 @@ def _print_summary_table(
     pc = pillar_coverage or {}
     has_verified = bool(pv)
 
-    print(f"\n\n{C.BOLD}{C.GREEN}✓ Assessment Complete{C.RESET}\n")
+    print(f"\n\n{C.BOLD}{C.GREEN}{G.CHECK} Assessment Complete{C.RESET}\n")
 
     if has_verified:
         header = f"  {'Pillar':<40} {'Verified Score':>15} {'Coverage':>10}"
         print(f"{C.BOLD}{header}{C.RESET}")
     else:
         print(f"{C.BOLD}Pillar Scores{C.RESET}")
-    print("─" * 70)
+    print(G.RULE * 70)
 
     for pillar in PILLAR_ORDER:
         display = PILLAR_DISPLAY_NAMES.get(pillar, pillar)
@@ -90,7 +184,7 @@ def _print_summary_table(
             cov = pc.get(pillar, 0)
             bar_len = 15
             filled = int(bar_len * v_pct / 100)
-            bar = f"{C.GREEN}█{C.RESET}" * filled + f"{C.DIM}░{C.RESET}" * (bar_len - filled)
+            bar = f"{C.GREEN}{G.BAR_FULL}{C.RESET}" * filled + f"{C.DIM}{G.BAR_EMPTY}{C.RESET}" * (bar_len - filled)
             cov_color = C.GREEN if cov >= 60 else (C.YELLOW if cov >= 40 else C.RED)
             print(f"  {display[:40]:<40} {bar} {v_pct:>3.0f}%   {cov_color}{cov:>4.0f}%{C.RESET}")
         else:
@@ -98,10 +192,10 @@ def _print_summary_table(
             pct = (score / 2.0) * 100 if score is not None else 0
             bar_len = 20
             filled = int(bar_len * pct / 100)
-            bar = f"{C.GREEN}█{C.RESET}" * filled + f"{C.DIM}░{C.RESET}" * (bar_len - filled)
+            bar = f"{C.GREEN}{G.BAR_FULL}{C.RESET}" * filled + f"{C.DIM}{G.BAR_EMPTY}{C.RESET}" * (bar_len - filled)
             print(f"  {display[:40]:<40} {bar} {pct:.0f}%")
 
-    print("─" * 70)
+    print(G.RULE * 70)
 
     if has_verified:
         v_pct = (verified_score / 2.0) * 100
@@ -181,12 +275,12 @@ def _scored_to_reporter_format(scored: Any) -> dict:
 def _save_cached_assessment(out_path: Path, result: Any, scored: Any) -> None:
     cache_dir = out_path / ".wal-e-cache"
     cache_dir.mkdir(exist_ok=True)
-    with open(cache_dir / "collected_data.json", "w") as f:
+    with open(cache_dir / "collected_data.json", "w", encoding="utf-8") as f:
         json.dump(result.collected_data, f, default=str, indent=2)
     audit_flat = _convert_audit_entries(result.raw_responses)
-    with open(cache_dir / "audit_entries.json", "w") as f:
+    with open(cache_dir / "audit_entries.json", "w", encoding="utf-8") as f:
         json.dump(audit_flat, f, indent=2)
-    with open(cache_dir / "scored_assessment.json", "w") as f:
+    with open(cache_dir / "scored_assessment.json", "w", encoding="utf-8") as f:
         json.dump(asdict(scored), f, indent=2)
 
 
@@ -299,86 +393,88 @@ def _run_assess_foreground(args: argparse.Namespace, config: Any, engine: Any) -
     return 0
 
 
+def _background_assessment_worker(profile: str, output: str, formats_list: list, host: str) -> None:
+    """Run a full assessment in a child process (no TTY output).
+
+    Defined at module scope (not as a closure) so it is picklable under the
+    'spawn' process start method used on Windows and modern macOS.
+    """
+    import json as _json
+    from dataclasses import asdict as _asdict
+    from wal_e.core.config import WalEConfig as _Cfg
+    from wal_e.core.engine import AssessmentEngine as _Eng
+    from wal_e.framework.scoring import ScoringEngine as _Sc
+    from wal_e.reporters import AuditLogReporter, CSVReporter, DocxRemediationReporter, MarkdownReporter, PPTXDeckReporter
+
+    _out = Path(output)
+    _out.mkdir(parents=True, exist_ok=True)
+    cache_dir = _out / ".wal-e-cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    _status = cache_dir / "bg.status"
+
+    try:
+        _status.write_text("running")
+        _cfg = _Cfg(profile_name=profile, output_dir=output)
+        _eng = _Eng(_cfg)
+        result = _eng.run_assessment()
+
+        sc_engine = _Sc()
+        scored = sc_engine.score_all(result.collected_data, _cfg.workspace_host or host)
+
+        reporter_format = {
+            "pillar_scores": dict(scored.pillar_scores) if scored.pillar_scores else {},
+            "best_practice_scores": [
+                {"name": bp.name, "pillar": bp.pillar, "principle": bp.principle,
+                 "score": float(bp.score), "finding_notes": bp.finding_notes,
+                 "verified": getattr(bp, "verified", True)}
+                for bp in scored.best_practice_scores
+            ],
+            "overall_score": scored.overall_score,
+            "maturity_level": scored.maturity_level,
+            "assessment_date": scored.assessment_date,
+            "workspace_host": scored.workspace_host or "Unknown",
+            "cloud_provider": getattr(scored, "cloud_provider", "") or "unknown",
+        }
+
+        audit_entries = []
+        for _cname, audit_list in result.raw_responses.items():
+            for ae in audit_list:
+                if hasattr(ae, "command"):
+                    cmd_str = " ".join(ae.command) if isinstance(ae.command, list) else str(ae.command)
+                    audit_entries.append({"command": cmd_str, "output": getattr(ae, "raw_output", ""), "timestamp": "", "duration": getattr(ae, "duration_seconds", 0)})
+
+        fmts = formats_list or ["md", "csv", "pptx", "audit", "docx"]
+        if "all" in fmts:
+            fmts = ["md", "csv", "pptx", "audit", "docx"]
+        reporters_map = {"md": MarkdownReporter(), "csv": CSVReporter(), "pptx": PPTXDeckReporter(), "audit": AuditLogReporter(), "docx": DocxRemediationReporter()}
+        for fmt in fmts:
+            r = reporters_map.get(fmt)
+            if r:
+                try:
+                    r.generate(reporter_format, result.collected_data, audit_entries, _out)
+                except Exception:
+                    pass
+
+        with open(cache_dir / "collected_data.json", "w", encoding="utf-8") as f:
+            _json.dump(result.collected_data, f, default=str, indent=2)
+        with open(cache_dir / "scored_assessment.json", "w", encoding="utf-8") as f:
+            _json.dump(_asdict(scored), f, indent=2)
+        with open(cache_dir / "audit_entries.json", "w", encoding="utf-8") as f:
+            _json.dump(audit_entries, f, indent=2)
+
+        _status.write_text("complete")
+    except Exception as e:
+        _status.write_text(f"error: {e}")
+
+
 def _run_assess_background(args: argparse.Namespace, config: Any, engine: Any) -> int:
-    """Fork the assessment into a background process and return immediately."""
+    """Launch the assessment in a background process and return immediately."""
     import multiprocessing
-    import os
 
     out_path = Path(args.output)
-    out_path.mkdir(parents=True, exist_ok=True)
-    pid_file = out_path / ".wal-e-cache" / "bg.pid"
-    pid_file.parent.mkdir(parents=True, exist_ok=True)
-    status_file = out_path / ".wal-e-cache" / "bg.status"
-
-    def _background_worker(profile: str, output: str, formats_list: list, host: str) -> None:
-        """Runs in a child process — no TTY output."""
-        import json as _json
-        from wal_e.core.config import WalEConfig as _Cfg
-        from wal_e.core.engine import AssessmentEngine as _Eng
-        from wal_e.framework.scoring import ScoringEngine as _Sc
-        from wal_e.reporters import AuditLogReporter, CSVReporter, DocxRemediationReporter, MarkdownReporter, PPTXDeckReporter
-
-        _out = Path(output)
-        _out.mkdir(parents=True, exist_ok=True)
-        _status = _out / ".wal-e-cache" / "bg.status"
-
-        try:
-            _status.write_text("running")
-            _cfg = _Cfg(profile_name=profile, output_dir=output)
-            _eng = _Eng(_cfg)
-            result = _eng.run_assessment()
-
-            sc_engine = _Sc()
-            scored = sc_engine.score_all(result.collected_data, _cfg.workspace_host or host)
-
-            reporter_format = {
-                "pillar_scores": dict(scored.pillar_scores) if scored.pillar_scores else {},
-                "best_practice_scores": [
-                    {"name": bp.name, "pillar": bp.pillar, "principle": bp.principle,
-                     "score": float(bp.score), "finding_notes": bp.finding_notes,
-                     "verified": getattr(bp, "verified", True)}
-                    for bp in scored.best_practice_scores
-                ],
-                "overall_score": scored.overall_score,
-                "maturity_level": scored.maturity_level,
-                "assessment_date": scored.assessment_date,
-                "workspace_host": scored.workspace_host or "Unknown",
-                "cloud_provider": getattr(scored, "cloud_provider", "") or "unknown",
-            }
-
-            audit_entries = []
-            for _cname, audit_list in result.raw_responses.items():
-                for ae in audit_list:
-                    if hasattr(ae, "command"):
-                        cmd_str = " ".join(ae.command) if isinstance(ae.command, list) else str(ae.command)
-                        audit_entries.append({"command": cmd_str, "output": getattr(ae, "raw_output", ""), "timestamp": "", "duration": getattr(ae, "duration_seconds", 0)})
-
-            fmts = formats_list or ["md", "csv", "pptx", "audit", "docx"]
-            if "all" in fmts:
-                fmts = ["md", "csv", "pptx", "audit", "docx"]
-            reporters_map = {"md": MarkdownReporter(), "csv": CSVReporter(), "pptx": PPTXDeckReporter(), "audit": AuditLogReporter(), "docx": DocxRemediationReporter()}
-            for fmt in fmts:
-                r = reporters_map.get(fmt)
-                if r:
-                    try:
-                        r.generate(reporter_format, result.collected_data, audit_entries, _out)
-                    except Exception:
-                        pass
-
-            # Save cache
-            cache_dir = _out / ".wal-e-cache"
-            cache_dir.mkdir(exist_ok=True)
-            with open(cache_dir / "collected_data.json", "w") as f:
-                _json.dump(result.collected_data, f, default=str, indent=2)
-            with open(cache_dir / "scored_assessment.json", "w") as f:
-                from dataclasses import asdict as _asdict
-                _json.dump(_asdict(scored), f, indent=2)
-            with open(cache_dir / "audit_entries.json", "w") as f:
-                _json.dump(audit_entries, f, indent=2)
-
-            _status.write_text("complete")
-        except Exception as e:
-            _status.write_text(f"error: {e}")
+    cache_dir = out_path / ".wal-e-cache"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    pid_file = cache_dir / "bg.pid"
 
     _print_banner(args.quiet)
     if not args.quiet:
@@ -387,7 +483,7 @@ def _run_assess_background(args: argparse.Namespace, config: Any, engine: Any) -
         print(f"{C.BLUE}Profile:{C.RESET} {args.profile}  {C.BLUE}Cloud:{C.RESET} {cloud_label}")
 
     p = multiprocessing.Process(
-        target=_background_worker,
+        target=_background_assessment_worker,
         args=(args.profile, args.output, args.format, config.workspace_host or "Unknown"),
         daemon=False,
     )
@@ -412,7 +508,7 @@ def _auto_discover_warehouse(profile: str) -> str:
     try:
         result = subprocess.run(
             ["databricks", "api", "get", "/api/2.0/sql/warehouses", "--profile", profile],
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
         )
         if result.returncode != 0 or not result.stdout:
             return ""
@@ -537,10 +633,10 @@ def _run_validate(args: argparse.Namespace) -> int:
     ok, msg = config.validate()
     if ok:
         if not args.quiet:
-            print(f"{C.GREEN}✓ {msg}{C.RESET}")
+            print(f"{C.GREEN}{G.CHECK} {msg}{C.RESET}")
         return 0
     if not args.quiet:
-        print(f"{C.RED}✗ {msg}{C.RESET}")
+        print(f"{C.RED}{G.CROSS} {msg}{C.RESET}")
     return 1
 
 
@@ -738,13 +834,13 @@ def _run_report(args: argparse.Namespace) -> int:
             print(f"{C.RED}Cached data incomplete. Re-run 'wal-e assess'.{C.RESET}")
         return 1
 
-    with open(collected_path) as f:
+    with open(collected_path, encoding="utf-8") as f:
         collected_data = json.load(f)
-    with open(scored_path) as f:
+    with open(scored_path, encoding="utf-8") as f:
         scored_dict = json.load(f)
     audit_entries = []
     if audit_path.exists():
-        with open(audit_path) as f:
+        with open(audit_path, encoding="utf-8") as f:
             audit_entries = json.load(f)
 
     reporter_format = {
@@ -768,10 +864,10 @@ def _run_report(args: argparse.Namespace) -> int:
             try:
                 r.generate(reporter_format, collected_data, audit_entries, inp)
                 if not args.quiet:
-                    print(f"{C.GREEN}✓{C.RESET} Generated report ({fmt})")
+                    print(f"{C.GREEN}{G.CHECK}{C.RESET} Generated report ({fmt})")
             except Exception as e:
                 if not args.quiet:
-                    print(f"{C.RED}✗ {fmt}:{C.RESET} {e}")
+                    print(f"{C.RED}{G.CROSS} {fmt}:{C.RESET} {e}")
                 return 1
 
     if not args.quiet:
@@ -782,6 +878,8 @@ def _run_report(args: argparse.Namespace) -> int:
 def main() -> int:
     parser = argparse.ArgumentParser(prog="wal-e", description="Well-Architected Lakehouse Evaluator")
     parser.add_argument("--version", action="version", version="%(prog)s 0.1.0")
+    parser.add_argument("--no-color", action="store_true",
+                        help="Disable ANSI colors (also honored via the NO_COLOR env var)")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     assess_parser = subparsers.add_parser("assess", help="Run full WAL-E assessment")
@@ -823,6 +921,7 @@ def main() -> int:
     report_parser.set_defaults(func=_run_report)
 
     args = parser.parse_args()
+    _init_console(no_color=getattr(args, "no_color", False))
     if not args.command:
         parser.print_help()
         return 0

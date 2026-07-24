@@ -281,18 +281,26 @@ install_mcp() {
   # 1. Install CLI first
   install_cli
 
+  # Resolve the absolute interpreter path so the MCP server launches with the
+  # same Python 3.10+ that WAL-E was installed into (bare 'python3' may be a
+  # different/older interpreter, or absent on some systems).
+  local PY
+  if ! PY="$(find_python)"; then
+    PY="python3"
+  fi
+
   # 2. Check for claude CLI
   if ! command -v claude &> /dev/null; then
     warn "Claude CLI not found. Providing manual registration instructions."
     echo ""
     echo -e "  ${BOLD}Manual MCP registration:${RESET}"
-    echo -e "  ${CYAN}claude mcp add-json wal-e '{\"command\": \"python3\", \"args\": [\"$SCRIPT_DIR/mcp/server.py\"]}'${RESET}"
+    echo -e "  ${CYAN}claude mcp add-json wal-e '{\"command\": \"$PY\", \"args\": [\"$SCRIPT_DIR/mcp/server.py\"]}'${RESET}"
     echo ""
     return 0
   fi
 
   # 3. Register with Claude
-  MCP_JSON="{\"command\": \"python3\", \"args\": [\"$SCRIPT_DIR/mcp/server.py\"]}"
+  MCP_JSON="{\"command\": \"$PY\", \"args\": [\"$SCRIPT_DIR/mcp/server.py\"]}"
   claude mcp add-json wal-e "$MCP_JSON" 2>/dev/null && \
     success "WAL-E registered as MCP server." || \
     warn "MCP registration may require manual setup. Run:"

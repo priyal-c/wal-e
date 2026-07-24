@@ -123,9 +123,11 @@ Your Databricks SA will guide you through these steps on a call or screen share.
 - [Databricks CLI](https://docs.databricks.com/dev-tools/cli/install.html) v0.200+ configured with workspace access
 - Workspace admin access (recommended for full assessment)
 
-> **Use `python3.10 -m pip`, not a bare `pip`.** On many machines `pip`/`pip3` are bound to an older Python and will fail with `requires a different Python: 3.x not in '>=3.10'` (or `pip: command not found`). Substitute your exact version (e.g. `python3.11`, `python3.12`). The `python -m pip` form guarantees pip installs into the same interpreter you named. The `./install.sh` script handles this for you automatically.
+> **Use `python3.10 -m pip`, not a bare `pip`** (on Windows, `py -3 -m pip`). On many machines `pip`/`pip3` are bound to an older Python and will fail with `requires a different Python: 3.x not in '>=3.10'` (or `pip: command not found`). Substitute your exact version (e.g. `python3.11`, `python3.12`). The `python -m pip` form guarantees pip installs into the same interpreter you named. The `./install.sh` (macOS/Linux) and `install.ps1` (Windows) scripts handle this for you automatically.
 
 ### Step 1: Install WAL-E
+
+**macOS / Linux:**
 
 ```bash
 # Clone the repo (public — no authentication required)
@@ -138,6 +140,21 @@ cd wal-e
 # Or install manually, invoking pip through your Python 3.10+ interpreter
 python3.10 -m pip install -e .
 ```
+
+**Windows (PowerShell):**
+
+```powershell
+git clone https://github.com/priyal-c/wal-e.git
+cd wal-e
+
+# Recommended: the installer auto-detects a Python 3.10+ interpreter (uses the 'py' launcher)
+powershell -ExecutionPolicy Bypass -File .\install.ps1 --cli
+
+# Or install manually through the Windows Python launcher
+py -3 -m pip install -e .
+```
+
+> **Windows notes:** Install Python 3.10+ from [python.org](https://www.python.org/downloads/windows/) and tick **“Add python.exe to PATH”**. WAL-E runs in Windows Terminal, PowerShell, and `cmd.exe`; colors auto-enable on Windows 10+ and disable automatically when output is piped to a file. Use `--no-color` (or set the `NO_COLOR` env var) to force plain text. The Databricks CLI must be on `PATH` (`databricks --version` should work).
 
 ### Step 2: Configure Workspace Access
 
@@ -347,11 +364,16 @@ Then ask naturally in Claude Code (no slash command):
 ### As an MCP Server
 
 ```bash
-# Use the installer
+# Use the installer (macOS/Linux)
 ./install.sh --mcp
 
-# Or register manually
-claude mcp add-json wal-e '{"command": "python3", "args": ["'$(pwd)'/mcp/server.py"]}'
+# Or register manually (use the absolute path to your Python 3.10+ interpreter)
+claude mcp add-json wal-e '{"command": "'"$(command -v python3.10 || command -v python3)"'", "args": ["'$(pwd)'/mcp/server.py"]}'
+```
+
+```powershell
+# Windows (PowerShell): the installer resolves the right interpreter for you
+powershell -ExecutionPolicy Bypass -File .\install.ps1 --mcp
 ```
 
 Available MCP tools: `wal_e_assess`, `wal_e_collect`, `wal_e_score`, `wal_e_report`, `wal_e_validate`
