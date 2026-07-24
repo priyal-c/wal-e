@@ -326,7 +326,7 @@ GET /api/2.0/workspace/list?path=%2F
 
 ## 7. Optional: System Tables for Deep Assessment
 
-For a deeper assessment (cost analysis, query performance, audit trail), you can optionally grant access to [Databricks System Tables](https://docs.databricks.com/en/administration-guide/system-tables/index.html).
+For a deeper assessment (cost analysis, query performance, audit trail), you can optionally grant access to [Databricks System Tables](https://docs.databricks.com/en/administration-guide/system-tables/index.html). This also unlocks a **quantified auto-termination savings analysis** — estimated reclaimable idle hours and annualized dollar savings (at 10 / 30 / 60-minute policies) for interactive clusters running without auto-termination, derived from `system.compute.node_timeline`, `system.billing.usage`, and `system.billing.list_prices`.
 
 ```sql
 -- Run these as an account admin in a SQL warehouse

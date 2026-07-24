@@ -1483,11 +1483,12 @@ def _score_cost_011(data: dict) -> tuple[int, str]:
         return 1, "No interactive clusters or warehouses detected to evaluate auto-termination."
     wh_ok = wh_total == 0 or wh_stop == wh_total
     cl_ok = cl_total == 0 or cl_stop == cl_total
+    headline = _autoterm_headline(data)
     if wh_ok and cl_ok and (wh_stop + cl_stop) > 0:
         return 2, f"Auto-termination on all applicable compute: {cl_stop}/{cl_total} interactive cluster(s), {wh_stop}/{wh_total} warehouse(s)."
     if wh_stop > 0 or cl_stop > 0:
-        return 1, f"Auto-termination partial: {cl_stop}/{cl_total} interactive cluster(s), {wh_stop}/{wh_total} warehouse(s). Configure auto-stop on the rest."
-    return 0, f"No auto-termination configured ({cl_total} interactive cluster(s), {wh_total} warehouse(s)). Enable auto-stop."
+        return 1, f"Auto-termination partial: {cl_stop}/{cl_total} interactive cluster(s), {wh_stop}/{wh_total} warehouse(s). Configure auto-stop on the rest.{headline}"
+    return 0, f"No auto-termination configured ({cl_total} interactive cluster(s), {wh_total} warehouse(s)). Enable auto-stop.{headline}"
 
 
 def _score_cost_012(data: dict) -> tuple[int, str]:
@@ -1596,6 +1597,31 @@ def _st_available(st: dict, section: str) -> bool:
     return st.get("available", False) and isinstance(st.get(section), dict) and st[section].get("available", False)
 
 
+def _autoterm_savings(data: dict) -> dict:
+    """Return the quantified auto-termination savings block, or {} if absent."""
+    st = _st(data)
+    if not _st_available(st, "autoterm_savings"):
+        return {}
+    return st["autoterm_savings"]
+
+
+def _autoterm_headline(data: dict) -> str:
+    """One-sentence dollar headline for auto-termination savings, or '' if the
+    deep-scan savings analysis is unavailable or found nothing to reclaim."""
+    sav = _autoterm_savings(data)
+    annual = sav.get("annualized_at_30", 0) or 0
+    if annual <= 0:
+        return ""
+    n = sav.get("cluster_count", 0)
+    hrs = sav.get("reclaim_hrs_at_30", 0)
+    window = sav.get("window_days", 30)
+    return (
+        f" Est. ~${annual:,.0f}/yr reclaimable by enabling auto-termination "
+        f"(30-min idle) on {n} interactive cluster(s): {hrs:,.0f} idle hr "
+        f"reclaimable in the last {window}d, annualized."
+    )
+
+
 def _score_cost_021(data: dict) -> tuple[int, str]:
     """Idle cluster waste (deep): checks for clusters running without jobs."""
     st = _st(data)
@@ -1604,12 +1630,13 @@ def _score_cost_021(data: dict) -> tuple[int, str]:
     ch = st["compute_history"]
     idle = ch.get("idle_clusters", [])
     idle_hours = ch.get("idle_hours_30d", 0)
+    headline = _autoterm_headline(data)
     if not idle:
         return 2, "No idle clusters detected in the last 30 days. Compute resources well utilized."
     if idle_hours > 100:
         names = ", ".join(c.get("cluster_name", c.get("cluster_id", "?"))[:30] for c in idle[:3])
-        return 0, f"{len(idle)} idle clusters totaling {idle_hours:.0f}h in 30d. Top: {names}. Terminate or auto-stop."
-    return 1, f"{len(idle)} clusters with some idle time ({idle_hours:.0f}h total). Review auto-termination settings."
+        return 0, f"{len(idle)} idle clusters totaling {idle_hours:.0f}h in 30d. Top: {names}. Terminate or auto-stop.{headline}"
+    return 1, f"{len(idle)} clusters with some idle time ({idle_hours:.0f}h total). Review auto-termination settings.{headline}"
 
 
 def _score_cost_022(data: dict) -> tuple[int, str]:
