@@ -207,6 +207,8 @@ The assessment generates these files in the output directory:
 | `WAL_Assessment_Remediation_Guide.docx` | Detailed remediation instructions with cloud-specific doc links |
 | `WAL_Assessment_Audit_Report.md`        | Complete evidence trail of all API calls                        |
 
+> **Want to see what the output looks like first?** Browse the [`samples/`](./samples/) folder for a complete sanitized example set — the [readout](./samples/WAL_Assessment_Readout.md) and [scorecard](./samples/WAL_Assessment_Scores.csv) render directly in your browser, and the deck/remediation guide are included as downloads. All names and numbers in the samples are anonymized and illustrative.
+
 ### Understanding the Scores
 
 WAL-E reports two key metrics for each pillar and overall:
