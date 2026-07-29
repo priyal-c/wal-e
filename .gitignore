@@ -36,6 +36,11 @@ WAL_Assessment_*.csv
 WAL_Assessment_*.html
 WAL_Assessment_*.pptx
 
+# Exception: the sanitized sample reports under samples/ are intentionally tracked
+!samples/WAL_Assessment_*.md
+!samples/WAL_Assessment_*.csv
+!samples/WAL_Assessment_*.pptx
+
 # Credentials (never commit)
 .databrickscfg
 credentials.json

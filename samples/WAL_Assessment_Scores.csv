@@ -1,0 +1,189 @@
+Pillar,Principle,Best Practice,Relevant (Y/N),Score (0-2),Finding/Notes,Verified,Cloud
+Data & AI Governance,Establish governance processes,,,,,,AWS
+,,Establish governance process,Y,1,Unity Catalog in use but 2411 catalogs suggest ad-hoc governance. Formalize process.,Y,AWS
+,,Centralize access control,Y,2,Unity Catalog access control centralized. Metastore owner: Sample User 01.,Y,AWS
+,,Configure audit logging,Y,1,Workspace configuration accessible; audit logging partially verified. Enable system tables for full audit.,Y,AWS
+,,Audit events,Y,1,Workspace settings accessible; configure systematic audit event monitoring and alerting via system tables.,Y,AWS
+,,Account-level group management,Y,1,"1666 group(s) present but IdP sync is not verifiable from the workspace API (externalId is exposed only at the account level). Verify account-level, IdP-synced groups in the account console. [Why unverifiable: this is configured at the Databricks account level, which the workspace REST API does not expose. Confirm it in the account console before treating it as a gap.]",N,AWS
+,,Inference tables / payload logging for AI endpoints,Y,1,9/27 LLM endpoint(s) log payloads. Enable inference tables on the remaining endpoints.,Y,AWS
+Data & AI Governance,Manage metadata centrally,,,,,,AWS
+,,Manage metadata in one place,Y,2,Single metastore 'acme_metastore'; metadata managed centrally.,Y,AWS
+,,Add descriptions,Y,0,2411 catalogs — likely many lack descriptions. Add comments to schemas and tables.,Y,AWS
+,,Prefer managed tables,Y,1,"377 external location(s) configured, but the managed-vs-external table split is not verifiable from the API (external-location count is not a reliable proxy). Prefer UC managed tables for new tables. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+Data & AI Governance,Track lineage and discovery,,,,,,AWS
+,,Track lineage,Y,1,Unity Catalog lineage available but active tracking not verified. Monitor lineage usage.,Y,AWS
+,,Allow discovery,Y,1,Unity Catalog available but 2411 catalogs hinder discovery. Consolidate catalogs.,Y,AWS
+,,BROWSE privilege for discovery,Y,1,Unity Catalog in use. Grant BROWSE privilege on catalogs to All account users for data discovery.,Y,AWS
+Data & AI Governance,Govern AI assets,,,,,,AWS
+,,Govern AI assets,Y,2,63 model(s) governed in Unity Catalog (Vector Search indexes: 61). AI assets governed with data.,Y,AWS
+,,Models registered in Unity Catalog,Y,2,All 63 registered model(s) are in Unity Catalog. Centralized model governance in place.,Y,AWS
+Data & AI Governance,Define data quality standards,,,,,,AWS
+,,Define DQ standards,Y,1,16 DLT pipelines present — verify DQ expectations are defined.,Y,AWS
+,,Use DQ tools,Y,1,16 DLT pipelines — verify expectations are actively used.,Y,AWS
+Data & AI Governance,Enforce standardized formats,,,,,,AWS
+,,Enforce standardized formats,Y,1,"Unity Catalog + Delta Lake in use but cannot verify all tables use Delta format from API. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,,,,,,AWS
+Interoperability & Usability,Standard integration patterns,,,,,,AWS
+,,Standard integration patterns,Y,1,Jobs present but no standard integration patterns detected.,Y,AWS
+,,Optimized connectors,Y,1,Connector optimization not verified from API. Prefer native Delta connectors.,Y,AWS
+,,Certified partner tools,Y,1,Partner tool certification not verified from API.,Y,AWS
+,,Reduce pipeline complexity,Y,2,16 DLT pipelines reduce complexity.,Y,AWS
+,,Use IaC,Y,1,IaC usage not detected from API. Document Terraform/CI usage.,Y,AWS
+Interoperability & Usability,Open formats and standards,,,,,,AWS
+,,Open data formats,Y,2,Delta Lake (open format) used via Unity Catalog.,Y,AWS
+,,Secure sharing,Y,2,Delta Sharing configured (INTERNAL_AND_EXTERNAL) for secure sharing.,Y,AWS
+,,Open ML standards,Y,2,Open ML standards in use: 63 MLflow model(s) in Unity Catalog (32 serving endpoints).,Y,AWS
+Interoperability & Usability,Self-service and productivity,,,,,,AWS
+,,Self-service,Y,2,4 SQL Warehouses available for self-service analytics.,Y,AWS
+,,Serverless compute,Y,2,7 SQL warehouse(s) with Pro or serverless compute.,Y,AWS
+,,Predefined compute templates,Y,1,38 cluster policies — too many to be standardized templates. Consolidate.,Y,AWS
+,,AI productivity,Y,1,"AI productivity not verifiable from API. Verify assistant enablement. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+Interoperability & Usability,Reusable data products,,,,,,AWS
+,,Reusable data products,Y,1,Delta Sharing configured. Define reusable data products.,Y,AWS
+,,Semantic consistency,Y,1,"Semantic consistency not verifiable from API. Use Databricks SQL semantic layer. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+Interoperability & Usability,Track lineage and discovery,,,,,,AWS
+,,UC for discovery,Y,2,Unity Catalog 'acme_metastore' enables data discovery.,Y,AWS
+,,,,,,,AWS
+Operational Excellence,Dedicated operations,,,,,,AWS
+,,Dedicated ops team,Y,1,"Cannot verify org structure from API. Document dedicated ops ownership. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+Operational Excellence,Standardize CI/CD and MLOps,,,,,,AWS
+,,Enterprise SCM,Y,2,Repos/SCM configured (4 repos).,Y,AWS
+,,Standardize CI/CD,Y,1,11 jobs present but none use Git source. Use Repos and Git-backed job tasks for CI/CD.,Y,AWS
+,,MLOps processes,Y,1,"32 serving endpoints; Model Registry not verifiable from API. Register models in MLflow. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,IaC deployments,Y,1,IaC usage not detected from API. Document Terraform/CI usage.,Y,AWS
+,,Standardize compute,Y,2,38 cluster policies defined for standardized compute.,Y,AWS
+,,Deploy-code ML,Y,2,Model serving endpoints in use (32 endpoints).,Y,AWS
+,,Model registry,Y,1,"32 serving endpoints; Model Registry not verifiable from API. Register models in MLflow. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Automate experiment tracking,Y,1,"Experiment tracking not verifiable from API. Use MLflow for experiment tracking. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Reuse ML infra,Y,1,"ML infra reuse not verifiable from API. Use job clusters. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Automated rollbacks,Y,0,No Git-backed jobs detected. Implement CI/CD with automated rollback mechanisms.,Y,AWS
+,,Workload identity federation,Y,1,4298 service principal(s) exist. Verify workload identity federation for CI/CD auth (eliminates PATs).,Y,AWS
+Operational Excellence,Environment isolation,,,,,,AWS
+,,Environment isolation,Y,2,Multiple catalogs; environment isolation via UC.,Y,AWS
+,,Catalog strategy,Y,2,Catalog strategy in place with multiple catalogs.,Y,AWS
+Operational Excellence,Automated workflows,,,,,,AWS
+,,Automated workflows,Y,2,11 automated jobs.,Y,AWS
+,,Event-driven ingestion,Y,1,"Event-driven ingestion not verifiable from API. Use Auto Loader. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,ETL frameworks,Y,2,Delta Live Tables in use (16 pipelines).,Y,AWS
+,,Declarative management,Y,2,Delta Live Tables in use (16 pipelines).,Y,AWS
+Operational Excellence,Monitoring and capacity,,,,,,AWS
+,,Service limits,Y,1,"Service limits not verifiable from API. Document capacity limits. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Capacity planning,Y,1,"Capacity planning not verifiable from API. Document planning process. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Monitoring processes,Y,1,"Jobs/pipelines present; monitoring not fully verifiable from API. Configure alerts and dashboards. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Platform monitoring tools,Y,2,SQL Warehouses enable platform monitoring (4 warehouses).,Y,AWS
+,,Restart long-running clusters,Y,2,No long-running interactive clusters detected.,Y,AWS
+,,Cluster utilization efficiency (deep),Y,2,40 active clusters with avg 151h uptime/30d. Utilization looks reasonable.,Y,AWS
+,,,,,,,AWS
+"Security, Compliance & Privacy",Least privilege,,,,,,AWS
+,,Least privilege IAM,Y,2,Unity Catalog enables centralized least-privilege IAM.,Y,AWS
+,,SCIM provisioning,Y,1,"SCIM sync is not verifiable from the workspace API (1666 group(s), 0 user(s) present but no externalId returned). SCIM is typically configured at the account level, where externalId is not exposed to this endpoint — verify SCIM provisioning in the account console before treating this as a gap. [Why unverifiable: this is configured at the Databricks account level, which the workspace REST API does not expose. Confirm it in the account console before treating it as a gap.]",N,AWS
+,,Service principals for automation,Y,2,4298 service principals configured for automation.,Y,AWS
+"Security, Compliance & Privacy",Data protection,,,,,,AWS
+,,Data protection transit/rest,Y,1,Verify AWS SSE-S3/SSE-KMS encryption at rest and TLS in transit. Consider customer-managed keys (CMK).,Y,AWS
+,,SSO configuration,Y,1,"Identities present but IdP sync is not verifiable from the workspace API. Confirm SSO via your identity provider (Okta, AAD, etc.) (AWS) in the account console. [Why unverifiable: this is configured at the Databricks account level, which the workspace REST API does not expose. Confirm it in the account console before treating it as a gap.]",N,AWS
+,,Restrict DBFS root data storage,Y,0,DBFS file browser is ENABLED. Disable immediately and migrate data out of DBFS root.,Y,AWS
+,,Guardrails on LLM endpoints,Y,1,2/27 LLM endpoint(s) have guardrails. Add PII/safety guardrails to the remaining endpoints.,Y,AWS
+,,No plaintext credentials on external-model endpoints,Y,2,2 external-model endpoint(s) reference credentials via secret scopes (no plaintext keys).,Y,AWS
+"Security, Compliance & Privacy",Network security,,,,,,AWS
+,,Network security,Y,1,IP access lists not detected. Configure network restrictions.,Y,AWS
+,,Customer-managed VPC,Y,1,"IP access lists enabled (AWS). Network isolation (customer-managed VPC with AWS PrivateLink) is configured at the account/deployment level and is not verifiable from the workspace API; confirm in the account console. [Why unverifiable: this is configured at the Databricks account level, which the workspace REST API does not expose. Confirm it in the account console before treating it as a gap.]",N,AWS
+"Security, Compliance & Privacy",Compliance,,,,,,AWS
+,,Shared responsibility,Y,1,"Shared responsibility model not verifiable from API. Document cloud security. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Compliance requirements,Y,1,"Some workspace security settings configured; review DBFS browser, IP access lists for full compliance.",Y,AWS
+,,System security monitoring,Y,1,"System tables access not verifiable from API. Enable for security monitoring. [Why unverifiable: this requires the optional --deep scan (Databricks system tables), which was not run. It is a scope limitation of the standard scan, not a detected gap.]",N,AWS
+,,Generic controls,Y,1,Workspace security settings present; consider disabling DBFS file browser for compliance.,Y,AWS
+"Security, Compliance & Privacy",Monitoring and compliance,,,,,,AWS
+,,Failed login monitoring (deep),Y,0,315 failed login attempts in 30 days. Possible brute-force. Enable IP access lists and review.,Y,AWS
+,,Permission change audit (deep),Y,0,522057 permission changes in 30 days (of 277430572 total events). High churn — review governance.,Y,AWS
+,,,,,,,AWS
+Reliability,ACID and resilient storage,,,,,,AWS
+,,ACID format,Y,1,"Unity Catalog + Delta Lake in use but cannot verify all tables use Delta format from API. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Resilient engine,Y,1,Photon not detected on clusters. Use Photon for better resilience.,Y,AWS
+,,Rescue invalid data,Y,1,"Rescue invalid data pattern not verifiable from pipeline metadata. Use Auto Loader rescued column. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Layered storage,Y,1,"Multiple catalogs; schema layering not verifiable from API. Verify bronze/silver/gold. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Reduce redundancy,Y,1,"Data redundancy not verifiable from API. Document deduplication strategy. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+Reliability,Managed services,,,,,,AWS
+,,Auto retries,Y,1,Jobs present but none have max_retries > 0. Configure retries for resilience.,Y,AWS
+,,Scalable serving,Y,2,Model serving endpoints in use (32 endpoints).,Y,AWS
+,,Managed services,Y,2,"Managed services (jobs, DLT, SQL) in use.",Y,AWS
+,,ETL autoscaling,Y,1,DLT pipelines present but autoscaling not enabled. Enable on DLT pipelines.,Y,AWS
+,,SQL warehouse autoscaling,Y,2,7 SQL warehouse(s) with multi-cluster or serverless autoscaling.,Y,AWS
+,,Service principal job ownership,Y,1,Service principals exist but job ownership not verified. Transfer production job ownership to service principals.,Y,AWS
+,,Provisioned throughput for production LLM serving,Y,1,"27 LLM endpoint(s), none clearly production-named. Use provisioned throughput for production SLAs (heuristic by name).",Y,AWS
+Reliability,Schema management,,,,,,AWS
+,,Active schema mgmt,Y,1,"DLT pipelines present; schema constraints not verifiable from API. Use Delta constraints. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Constraints/expectations,Y,1,"DLT pipelines present; schema constraints not verifiable from API. Use Delta constraints. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Data-centric ML,Y,1,"Feature Store not verifiable from API. Use for data-centric ML. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+Reliability,Backup and recovery,,,,,,AWS
+,,Regular backups,Y,1,"Backup strategy not verifiable from API. Document Delta clone/backup process. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Streaming recovery,Y,1,"DLT checkpoints used by default; storage config not verifiable from API. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Time travel recovery,Y,2,Unity Catalog with Delta Lake enables time travel recovery.,Y,AWS
+,,Job automation recovery,Y,1,Jobs present but none have max_retries > 0. Configure retries for resilience.,Y,AWS
+,,DR pattern,Y,1,"DR pattern not verifiable from API. Document replication and RTO/RPO. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+Reliability,Resilient workloads,,,,,,AWS
+,,Job success rate (deep),Y,0,Job success rate is 53.5256% (7892 failures out of 93503 runs). Investigate and add retries.,Y,AWS
+,,Recurring job failures (deep),Y,0,10 jobs have 5+ failures in 30 days. Chronic reliability issue — investigate root causes.,Y,AWS
+,,,,,,,AWS
+Performance Efficiency,Scaling and serverless,,,,,,AWS
+,,Scaling,Y,2,3 cluster(s) with autoscaling enabled.,Y,AWS
+,,Serverless,Y,2,7 SQL warehouse(s) with Pro or serverless compute.,Y,AWS
+,,Larger clusters,Y,2,Clusters sized for scale (max 3 workers). Right-size for workload.,Y,AWS
+,,Graviton instance types,Y,0,No Graviton instances across 4 clusters (AWS). Adopt for best price-to-performance.,Y,AWS
+,,Standard access mode,Y,2,3/4 cluster(s) use standard/shared access mode with UC isolation.,Y,AWS
+,,Warehouse utilization balance (deep),Y,2,Queries distributed across 10 warehouses (top: 13%).,Y,AWS
+Performance Efficiency,Data patterns,,,,,,AWS
+,,Data patterns,Y,1,"Data optimization (OPTIMIZE/Z-ORDER) not verifiable from API. Use OPTIMIZE and Z-ORDER. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Parallel computation,Y,1,Clusters present but worker count not available. Scale workers for throughput.,Y,AWS
+,,Execution chain,Y,2,Delta Live Tables in use (16 pipelines).,Y,AWS
+,,Native Spark,Y,1,Photon not detected on clusters. Use Photon for better resilience.,Y,AWS
+,,Native engines,Y,1,Photon not detected on clusters. Use Photon for better resilience.,Y,AWS
+,,Hardware awareness,Y,2,Multiple instance types in use (3 types) — workload-aware selection.,Y,AWS
+,,Compaction,Y,1,"Data optimization (OPTIMIZE/Z-ORDER) not verifiable from API. Use OPTIMIZE and Z-ORDER. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Avoid over-partition,Y,1,"Partitioning strategy not verifiable from API. Avoid over-partitioning. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Liquid clustering,Y,1,Unity Catalog in use. Migrate from Z-ORDER/partitioning to liquid clustering for better performance.,Y,AWS
+Performance Efficiency,Query optimization,,,,,,AWS
+,,Caching,Y,1,"Caching not verifiable from API. Use Delta Cache for repeated reads. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Data skipping,Y,1,"Data optimization (OPTIMIZE/Z-ORDER) not verifiable from API. Use OPTIMIZE and Z-ORDER. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Join optimization,Y,1,Join optimization (AQE) enabled by default. Verify skew handling.,Y,AWS
+,,Table statistics,Y,1,"Table statistics not verifiable from API. Run ANALYZE TABLE. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Test on production data,Y,1,"Testing strategy not verifiable from API. Use clone for testing. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Prewarming,Y,2,7 SQL warehouse(s) with Photon enabled for latency-sensitive workloads.,Y,AWS
+,,Predictive optimization,Y,1,Unity Catalog in use. Enable predictive optimization for auto OPTIMIZE/VACUUM on managed tables.,Y,AWS
+Performance Efficiency,Monitoring,,,,,,AWS
+,,Identify bottlenecks,Y,2,SQL Warehouses enable query history for bottleneck identification.,Y,AWS
+,,Monitor queries,Y,2,SQL Warehouses enable query monitoring (4 warehouses).,Y,AWS
+,,Monitor streaming,Y,2,DLT pipelines enable streaming monitoring (16 pipelines).,Y,AWS
+,,Monitor jobs,Y,2,Jobs enable cluster/job monitoring (11 jobs).,Y,AWS
+Performance Efficiency,Monitoring and tuning,,,,,,AWS
+,,Query failure rate (deep),Y,0,Query failure rate is 12.0607% (899642 of 5243829 queries). Investigate failing queries.,Y,AWS
+,,Slow query prevalence (deep),Y,2,Only 18311 queries (of 5243829) exceeded 5 min. P95: 7.1s. Performance healthy.,Y,AWS
+,,,,,,,AWS
+Cost Optimization,Optimized formats and compute,,,,,,AWS
+,,Optimized formats,Y,1,"Unity Catalog + Delta Lake in use but cannot verify all tables use Delta format from API. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Job clusters,Y,1,Jobs present but not using job clusters. Use job clusters for cost efficiency.,Y,AWS
+,,Up-to-date runtimes,Y,2,4/4 cluster(s) on recent runtimes (>=14.x).,Y,AWS
+,,Serverless,Y,2,7 SQL warehouse(s) with Pro or serverless compute.,Y,AWS
+,,Performance engines,Y,1,Photon not detected on clusters. Use Photon for better resilience.,Y,AWS
+,,On-demand vs reserved,Y,1,Evaluate AWS Reserved Instances or Savings Plans for predictable workloads.,Y,AWS
+Cost Optimization,Right-sizing,,,,,,AWS
+,,SQL for SQL,Y,2,SQL Warehouses used for SQL workloads (4 warehouses).,Y,AWS
+,,GPU right workloads,Y,2,No GPU clusters — cost-efficient instance selection.,Y,AWS
+,,Right instance type,Y,2,Cluster policies help enforce right instance types (38 policies).,Y,AWS
+,,Efficient compute size,Y,2,3 cluster(s) with autoscaling for right-sizing.,Y,AWS
+,,Cluster policies costs,Y,2,38 cluster policies defined for standardized compute.,Y,AWS
+,,Streaming balance,Y,1,"Streaming cost/throughput balance not verifiable. Tune micro-batch size. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Spot instance strategy,Y,2,1/4 cluster(s) use Spot instances for cost savings (AWS).,Y,AWS
+Cost Optimization,Auto-scaling and termination,,,,,,AWS
+,,Auto-scaling,Y,2,"Auto-scaling enabled: 3 cluster(s), 2 warehouse(s) with multi-cluster.",Y,AWS
+,,Auto-termination,Y,1,"Auto-termination partial: 0/1 interactive cluster(s), 7/7 warehouse(s). Configure auto-stop on the rest.",Y,AWS
+Cost Optimization,Cost monitoring,,,,,,AWS
+,,Monitor costs,Y,1,"Cost tagging not verifiable from API. Add tags for cost allocation. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Tag clusters,Y,2,1/1 interactive cluster(s) carry custom tags for cost allocation.,Y,AWS
+,,Chargeback,Y,1,"Cost tagging not verifiable from API. Add tags for cost allocation. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Cost reports,Y,1,"Cost tagging not verifiable from API. Add tags for cost allocation. [Why unverifiable: the workspace REST API does not expose enough detail to confirm this. Treat as needs manual review, not a confirmed gap.]",N,AWS
+,,Budget alerts,Y,1,Configure Databricks budget alerts in Account Console. Also set up AWS Cost Explorer and billing alarms.,Y,AWS
+,,Cost trend analysis (deep),Y,2,"DBU spend stable or declining (-24.2% change, 3789925 DBUs/30d).",Y,AWS
+,,DBU concentration risk (deep),Y,2,DBU spend well distributed across clusters (top cluster: 1%).,Y,AWS
+Cost Optimization,Eliminate waste,,,,,,AWS
+,,Idle cluster waste (deep),Y,0,"10 idle clusters totaling 2383h in 30d. Top: sample-resource-147, sample-resource-149, sample-resource-150. Terminate or auto-stop.",Y,AWS
+,,,,,,,AWS
