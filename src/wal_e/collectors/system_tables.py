@@ -23,13 +23,35 @@ _POLL_INTERVAL_SECONDS = 5.0
 _MAX_POLL_SECONDS = 180.0
 _TERMINAL_STATES = ("SUCCEEDED", "FAILED", "CANCELED", "CLOSED")
 
+# Lookback window shared by all system-table queries. Kept at 30 days to match
+# system.compute.node_timeline retention and bound query weight; annualized
+# figures scale from this window.
+_LOOKBACK_DAYS = 30
+_DAYS_PER_YEAR = 365.0
+
+# Auto-termination idle thresholds (minutes) modeled for savings analysis.
+_AUTOTERM_THRESHOLDS = (10, 30, 60)
+
+# Fallback DBU price used only when the list-price lookup misses.
+_FALLBACK_DBU_PRICE = 0.55
+
+# Maps WAL-E's detected cloud code to the value used in the `cloud` column of
+# system.billing.list_prices (AWS / AZURE / GCP, per the pricing table schema).
+_LIST_PRICE_CLOUD = {"aws": "AWS", "azure": "AZURE", "gcp": "GCP"}
+
 
 class SystemTablesCollector(BaseCollector):
     """Collects data from Databricks system tables via SQL statements."""
 
-    def __init__(self, profile_name: str = "DEFAULT", warehouse_id: str = "") -> None:
+    def __init__(
+        self,
+        profile_name: str = "DEFAULT",
+        warehouse_id: str = "",
+        cloud_provider: str = "unknown",
+    ) -> None:
         super().__init__(profile_name)
         self.warehouse_id = warehouse_id
+        self.cloud_provider = cloud_provider
 
     @staticmethod
     def _parse_rows(resp: dict[str, Any]) -> list[dict[str, Any]]:
@@ -150,6 +172,7 @@ class SystemTablesCollector(BaseCollector):
             "available": False,
             "billing": {},
             "compute_history": {},
+            "autoterm_savings": {},
             "query_history": {},
             "job_runs": {},
             "audit_events": {},
@@ -166,6 +189,7 @@ class SystemTablesCollector(BaseCollector):
 
         findings["billing"] = self._collect_billing()
         findings["compute_history"] = self._collect_compute_history()
+        findings["autoterm_savings"] = self._collect_autoterm_savings()
         findings["query_history"] = self._collect_query_history()
         findings["job_runs"] = self._collect_job_runs()
         findings["audit_events"] = self._collect_audit_events()
@@ -299,6 +323,170 @@ class SystemTablesCollector(BaseCollector):
             result["idle_clusters"] = rows
             result["idle_hours_30d"] = round(sum(float(r.get("running_hours") or 0) for r in rows), 1)
 
+        return result
+
+    # ------------------------------------------------------------------
+    # Auto-termination savings (quantified)
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _to_float(value: Any) -> float:
+        """Coerce a JSON_ARRAY cell (always a string) to float; 0.0 on failure."""
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _collect_autoterm_savings(self) -> dict[str, Any]:
+        """Quantify reclaimable idle hours and dollar savings from enabling
+        auto-termination on interactive (all-purpose) clusters that currently
+        have it disabled.
+
+        Idle is detected per-minute across all nodes (driver + executors);
+        streaks are bounded per driver lifecycle so a restart starts fresh. For
+        each idle streak, minutes beyond threshold X are reclaimable under an
+        X-minute auto-termination policy. Dollars use each cluster's average
+        DBU/hr times its SKU list price (interactive DBUs bill per node-hour
+        regardless of utilization). On autoscaling clusters this can slightly
+        over-estimate dollars; reclaimed hours are exact.
+        """
+        result: dict[str, Any] = {"available": False}
+
+        cloud_value = _LIST_PRICE_CLOUD.get(self.cloud_provider)
+        price_join_cloud = f"AND lp.cloud = '{cloud_value}'" if cloud_value else ""
+        window = _LOOKBACK_DAYS
+        t10, t30, t60 = _AUTOTERM_THRESHOLDS
+        fb = _FALLBACK_DBU_PRICE
+
+        sql = f"""
+            WITH target_clusters AS (
+                SELECT cluster_id, cluster_name FROM (
+                    SELECT cluster_id, cluster_name, cluster_source, auto_termination_minutes,
+                           ROW_NUMBER() OVER (PARTITION BY cluster_id ORDER BY change_time DESC) AS rn
+                    FROM system.compute.clusters
+                    WHERE cluster_source IN ('UI', 'API')
+                ) WHERE rn = 1
+                  AND (auto_termination_minutes IS NULL OR auto_termination_minutes = 0)
+            ),
+            all_node_minutes AS (
+                SELECT nt.cluster_id, nt.start_time AS minute,
+                       MAX(CASE WHEN COALESCE(nt.cpu_user_percent,0)+COALESCE(nt.cpu_system_percent,0)+COALESCE(nt.cpu_wait_percent,0) > 5 THEN 1 ELSE 0 END) AS is_active
+                FROM system.compute.node_timeline nt
+                JOIN target_clusters tc ON nt.cluster_id = tc.cluster_id
+                WHERE nt.start_time >= current_date() - INTERVAL {window} DAYS
+                GROUP BY nt.cluster_id, nt.start_time
+            ),
+            driver_sessions AS (
+                SELECT DISTINCT nt.cluster_id, nt.instance_id, nt.start_time AS minute
+                FROM system.compute.node_timeline nt
+                JOIN target_clusters tc ON nt.cluster_id = tc.cluster_id
+                WHERE nt.driver = true AND nt.start_time >= current_date() - INTERVAL {window} DAYS
+            ),
+            session_activity AS (
+                SELECT ds.cluster_id, ds.instance_id, ds.minute, COALESCE(an.is_active, 0) AS is_active
+                FROM driver_sessions ds
+                LEFT JOIN all_node_minutes an ON ds.cluster_id = an.cluster_id AND ds.minute = an.minute
+            ),
+            streaks AS (
+                SELECT cluster_id, instance_id, minute, is_active,
+                       SUM(is_active) OVER (PARTITION BY cluster_id, instance_id ORDER BY minute ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS active_grp
+                FROM session_activity
+            ),
+            cluster_uptime AS (
+                SELECT cluster_id, COUNT(*) / 60.0 AS uptime_hrs FROM streaks GROUP BY cluster_id
+            ),
+            reclaimable AS (
+                SELECT cluster_id,
+                    SUM(CASE WHEN idle_streak_min > {t10} THEN 1 ELSE 0 END) / 60.0 AS reclaim_hrs_at_10,
+                    SUM(CASE WHEN idle_streak_min > {t30} THEN 1 ELSE 0 END) / 60.0 AS reclaim_hrs_at_30,
+                    SUM(CASE WHEN idle_streak_min > {t60} THEN 1 ELSE 0 END) / 60.0 AS reclaim_hrs_at_60
+                FROM (
+                    SELECT cluster_id, ROW_NUMBER() OVER (PARTITION BY cluster_id, instance_id, active_grp ORDER BY minute) AS idle_streak_min
+                    FROM streaks WHERE is_active = 0
+                )
+                GROUP BY cluster_id
+            ),
+            cluster_dbus AS (
+                SELECT usage_metadata.cluster_id AS cluster_id, SUM(usage_quantity) AS total_dbus
+                FROM system.billing.usage
+                WHERE usage_date >= current_date() - INTERVAL {window} DAYS
+                  AND billing_origin_product = 'ALL_PURPOSE' AND usage_unit = 'DBU'
+                  AND usage_metadata.cluster_id IS NOT NULL AND record_type = 'ORIGINAL'
+                GROUP BY usage_metadata.cluster_id
+            ),
+            cluster_sku AS (
+                SELECT cluster_id, sku_name FROM (
+                    SELECT usage_metadata.cluster_id AS cluster_id, sku_name,
+                           ROW_NUMBER() OVER (PARTITION BY usage_metadata.cluster_id ORDER BY COUNT(*) DESC) AS rn
+                    FROM system.billing.usage
+                    WHERE usage_date >= current_date() - INTERVAL {window} DAYS
+                      AND billing_origin_product = 'ALL_PURPOSE' AND usage_unit = 'DBU'
+                      AND usage_metadata.cluster_id IS NOT NULL AND record_type = 'ORIGINAL'
+                    GROUP BY usage_metadata.cluster_id, sku_name
+                ) WHERE rn = 1
+            )
+            SELECT
+                tc.cluster_id,
+                tc.cluster_name,
+                ROUND(cu.uptime_hrs, 1) AS uptime_hrs,
+                ROUND(COALESCE(r.reclaim_hrs_at_30, 0), 1) AS reclaim_hrs_at_30,
+                ROUND(d.total_dbus, 0) AS total_dbus,
+                ROUND(d.total_dbus / NULLIF(cu.uptime_hrs, 0), 2) AS avg_dbu_per_hr,
+                COALESCE(lp.pricing.default, {fb}) AS price_per_dbu,
+                ROUND(COALESCE(r.reclaim_hrs_at_10, 0) * (d.total_dbus / NULLIF(cu.uptime_hrs, 0)) * COALESCE(lp.pricing.default, {fb}), 2) AS savings_at_10,
+                ROUND(COALESCE(r.reclaim_hrs_at_30, 0) * (d.total_dbus / NULLIF(cu.uptime_hrs, 0)) * COALESCE(lp.pricing.default, {fb}), 2) AS savings_at_30,
+                ROUND(COALESCE(r.reclaim_hrs_at_60, 0) * (d.total_dbus / NULLIF(cu.uptime_hrs, 0)) * COALESCE(lp.pricing.default, {fb}), 2) AS savings_at_60
+            FROM cluster_uptime cu
+            JOIN target_clusters tc ON cu.cluster_id = tc.cluster_id
+            JOIN cluster_dbus d ON cu.cluster_id = d.cluster_id
+            LEFT JOIN reclaimable r ON cu.cluster_id = r.cluster_id
+            LEFT JOIN cluster_sku cs ON cu.cluster_id = cs.cluster_id
+            LEFT JOIN system.billing.list_prices lp
+                ON lp.sku_name = cs.sku_name {price_join_cloud} AND lp.price_end_time IS NULL
+            WHERE d.total_dbus > 0
+            ORDER BY savings_at_30 DESC
+            LIMIT 50
+        """
+        rows, ok = self._run_sql(sql, "autoterm-savings-30d")
+        if not ok or not rows:
+            return result
+
+        annualize = _DAYS_PER_YEAR / window
+        clusters = [
+            {
+                "cluster_id": r.get("cluster_id"),
+                "cluster_name": r.get("cluster_name") or r.get("cluster_id"),
+                "uptime_hrs": self._to_float(r.get("uptime_hrs")),
+                "reclaim_hrs_at_30": self._to_float(r.get("reclaim_hrs_at_30")),
+                "avg_dbu_per_hr": self._to_float(r.get("avg_dbu_per_hr")),
+                "price_per_dbu": self._to_float(r.get("price_per_dbu")),
+                "savings_at_10": self._to_float(r.get("savings_at_10")),
+                "savings_at_30": self._to_float(r.get("savings_at_30")),
+                "savings_at_60": self._to_float(r.get("savings_at_60")),
+            }
+            for r in rows
+        ]
+
+        savings_window_30 = sum(c["savings_at_30"] for c in clusters)
+        result.update({
+            "available": True,
+            "window_days": window,
+            "cloud": cloud_value or self.cloud_provider,
+            "price_basis": (
+                "SKU list price (system.billing.list_prices); "
+                f"${fb}/DBU fallback on lookup miss"
+            ),
+            "thresholds_min": list(_AUTOTERM_THRESHOLDS),
+            "cluster_count": len(clusters),
+            "clusters": clusters,
+            "reclaim_hrs_at_30": round(sum(c["reclaim_hrs_at_30"] for c in clusters), 1),
+            "savings_window_at_10": round(sum(c["savings_at_10"] for c in clusters), 2),
+            "savings_window_at_30": round(savings_window_30, 2),
+            "savings_window_at_60": round(sum(c["savings_at_60"] for c in clusters), 2),
+            "annualized_at_30": round(savings_window_30 * annualize, 2),
+            "total_allpurpose_spend_window": round(
+                sum(self._to_float(r.get("total_dbus")) * self._to_float(r.get("price_per_dbu")) for r in rows), 2
+            ),
+        })
         return result
 
     # ------------------------------------------------------------------

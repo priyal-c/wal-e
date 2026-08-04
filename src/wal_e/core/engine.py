@@ -48,7 +48,11 @@ class AssessmentEngine:
         ]
         if config.deep_scan and config.warehouse_id:
             self._collectors.append(
-                SystemTablesCollector(config.profile_name, config.warehouse_id)
+                SystemTablesCollector(
+                    config.profile_name,
+                    config.warehouse_id,
+                    cloud_provider=config.cloud_provider,
+                )
             )
 
     def run_assessment(self) -> AssessmentResult:

@@ -304,7 +304,7 @@ wal-e report --input ./my-assessment --format all
 
 ### Deep Scan (System Tables)
 
-The standard assessment uses read-only REST API calls. For a deeper analysis, WAL-E can also query **Databricks system tables** to assess operational reality — actual cost trends, cluster idle time, query failure rates, job success rates, and security audit events.
+The standard assessment uses read-only REST API calls. For a deeper analysis, WAL-E can also query **Databricks system tables** to assess operational reality — actual cost trends, cluster idle time, query failure rates, job success rates, and security audit events. Deep scan also produces a **quantified auto-termination savings analysis**: for interactive clusters running without auto-termination, it estimates reclaimable idle hours and annualized dollar savings at 10 / 30 / 60-minute policies (surfaced in the readout and in the `cost-011` / `cost-021` findings).
 
 ```bash
 # Deep scan requires a running SQL warehouse and SELECT grants on system.* schemas
@@ -315,7 +315,7 @@ Deep scan adds **11 additional best practices** (145 total) covering:
 
 | Area            | What it reveals                                                  | System Table                                          |
 | --------------- | ---------------------------------------------------------------- | ----------------------------------------------------- |
-| **Cost**        | Idle cluster waste, DBU spend trends, concentration risk         | `system.billing.usage`, `system.compute.node_timeline` |
+| **Cost**        | Idle cluster waste, DBU spend trends, concentration risk, auto-termination $ savings (10/30/60-min) | `system.billing.usage`, `system.billing.list_prices`, `system.compute.node_timeline` |
 | **Performance** | Query failure rate, slow query prevalence, warehouse utilization | `system.query.history`                                |
 | **Reliability** | Job success rate, recurring job failures                         | `system.lakeflow.job_run_timeline`                    |
 | **Security**    | Failed login monitoring, permission change audit                 | `system.access.audit`                                 |

@@ -60,6 +60,11 @@ class MarkdownReporter(BaseReporter):
             if section:
                 sections.append(section)
 
+        # Quantified auto-termination savings (deep scan only)
+        autoterm_section = self._render_autoterm_savings(collected_data)
+        if autoterm_section:
+            sections.append(autoterm_section)
+
         # Critical findings summary
         sections.append(self._render_critical_findings(best_practice_scores, pillar_scores))
 
@@ -180,6 +185,70 @@ class MarkdownReporter(BaseReporter):
                 lines.append(f"| {priority} | **{name}:** {notes} | {impact} |")
         else:
             lines.append("- No specific recommendations; maintain current practices.")
+        lines.append("")
+        lines.append("---")
+        return "\n".join(lines)
+
+    def _render_autoterm_savings(self, collected_data: Dict[str, Any]) -> str:
+        """Render the quantified auto-termination savings section (deep scan only).
+
+        Returns an empty string when the deep-scan savings analysis is absent or
+        found no reclaimable idle time, so the section is omitted entirely.
+        """
+        st = collected_data.get("SystemTablesCollector", {}) or {}
+        sav = st.get("autoterm_savings", {}) or {}
+        if not sav.get("available") or (sav.get("annualized_at_30", 0) or 0) <= 0:
+            return ""
+
+        window = sav.get("window_days", 30)
+        clusters = sav.get("clusters", []) or []
+        annual = sav.get("annualized_at_30", 0)
+        w10 = sav.get("savings_window_at_10", 0)
+        w30 = sav.get("savings_window_at_30", 0)
+        w60 = sav.get("savings_window_at_60", 0)
+
+        lines = [
+            "## Cost Deep-Dive: Auto-Termination Savings",
+            "",
+            f"Interactive (all-purpose) clusters with auto-termination **disabled** were analyzed "
+            f"over the last **{window} days** using per-minute, all-node CPU telemetry "
+            f"(`system.compute.node_timeline`). Idle minutes beyond each threshold are reclaimable "
+            f"once auto-termination is enabled. Dollars use each cluster's average DBU/hr and its "
+            f"SKU list price.",
+            "",
+            f"**Estimated annualized savings at a 30-minute policy: ~${annual:,.0f}/year** "
+            f"across {sav.get('cluster_count', 0)} cluster(s), reclaiming "
+            f"{sav.get('reclaim_hrs_at_30', 0):,.0f} idle hours in the {window}-day window.",
+            "",
+            f"| Auto-termination policy | Reclaimable spend ({window}d) |",
+            "|---|---:|",
+            f"| 10-minute idle | ${w10:,.0f} |",
+            f"| 30-minute idle | ${w30:,.0f} |",
+            f"| 60-minute idle | ${w60:,.0f} |",
+            "",
+        ]
+
+        if clusters:
+            lines.append("### Top clusters by reclaimable spend")
+            lines.append("")
+            lines.append("| Cluster | Uptime (h) | Avg DBU/h | $/DBU | $ @ 10m | $ @ 30m | $ @ 60m |")
+            lines.append("|---------|:----------:|:---------:|:-----:|--------:|--------:|--------:|")
+            for c in clusters[:15]:
+                name = str(c.get("cluster_name") or c.get("cluster_id") or "?")[:40]
+                lines.append(
+                    f"| {name} | {c.get('uptime_hrs', 0):,.0f} | {c.get('avg_dbu_per_hr', 0):,.2f} | "
+                    f"${c.get('price_per_dbu', 0):,.2f} | ${c.get('savings_at_10', 0):,.0f} | "
+                    f"${c.get('savings_at_30', 0):,.0f} | ${c.get('savings_at_60', 0):,.0f} |"
+                )
+            lines.append("")
+
+        lines.append(
+            "> **Method & caveats:** reclaimed *hours* are exact; *dollars* use each cluster's "
+            "average DBU/hr, so autoscaling clusters (idle runs at min workers) can be slightly "
+            f"over-estimated. Figures are annualized from a {window}-day window. "
+            f"Price basis: {sav.get('price_basis', 'SKU list price')}. "
+            "Sanity-check the headline against the customer's actual bill before presenting."
+        )
         lines.append("")
         lines.append("---")
         return "\n".join(lines)
