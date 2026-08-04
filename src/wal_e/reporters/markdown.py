@@ -220,6 +220,8 @@ class MarkdownReporter(BaseReporter):
             f"across {sav.get('cluster_count', 0)} cluster(s), reclaiming "
             f"{sav.get('reclaim_hrs_at_30', 0):,.0f} idle hours in the {window}-day window.",
             "",
+            "> **List-price estimate — reconcile with the customer's effective rate before presenting.**",
+            "",
             f"| Auto-termination policy | Reclaimable spend ({window}d) |",
             "|---|---:|",
             f"| 10-minute idle | ${w10:,.0f} |",

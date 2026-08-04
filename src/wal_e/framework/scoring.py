@@ -1618,7 +1618,8 @@ def _autoterm_headline(data: dict) -> str:
     return (
         f" Est. ~${annual:,.0f}/yr reclaimable by enabling auto-termination "
         f"(30-min idle) on {n} interactive cluster(s): {hrs:,.0f} idle hr "
-        f"reclaimable in the last {window}d, annualized."
+        f"reclaimable in the last {window}d, annualized "
+        f"(list-price estimate — reconcile with effective rate)."
     )
 
 
